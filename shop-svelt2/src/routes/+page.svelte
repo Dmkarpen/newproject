@@ -11,22 +11,69 @@
 	let loading = false;
 	let isOpenModal = false;
 
+// 	fetch('https://dummyjson.com/products?limit=0')
+// 		.then((res) => res.json())
+// 		.then(({products}) => {
+// 			console.log('products', products);
+
+// 			products.forEach(element => {
+
+// 				fetch('http://127.0.0.1:8000/api/product-create', {
+// 				method: 'POST',
+// 				headers: {
+// 					'Content-Type': 'application/json'
+// 				},
+// 					body: JSON.stringify(element)
+// 				})
+				
+// 				.then(res => res.json())
+// 				.then (createdProduct =>{
+// 					element.images.forEach(imageUrl => {
+//             const imageData = {
+//               product_id: createdProduct.id,  // связь с реальным продуктом
+//               url: imageUrl
+//             };
+
+//             fetch('http://127.0.0.1:8000/api/product-image', {
+//               method: 'POST',
+//               headers: { 'Content-Type': 'application/json' },
+//               body: JSON.stringify(imageData)
+//             })
+//               .then(res => res.json())
+//               .then(createdImage => {
+//                 console.log('Image created:', createdImage);
+//               })
+//               .catch(err => {
+//                 console.error('Error creating image:', err);
+//               });
+//           });
+//         })
+//         .catch(err => {
+//           console.error('Error creating product:', err);
+//         });
+//     });
+
+//   })
+//   .catch(err => {
+//     console.error('Error fetching dummy products:', err);
+//   });
+
 	function fetchProducts(url) {
 		loading = true;
 		fetch(url)
 			.then((res) => res.json())
 			.then((enterData) => {
-				if (!enterData.products.length) {
+				if (!enterData.length) {
 					isOpenModal = true;
 				} else {
-					data.products = enterData.products;
+					data.products = enterData;
 				}
 				loading = false;
 			});
 	}
 
 	$: if (searchValue === '') {
-		fetchProducts('https://dummyjson.com/products');
+		fetchProducts('http://127.0.0.1:8000/api/products');
 	}
    
    function searchFunction() {
@@ -72,37 +119,42 @@
 
 <div class="join flex justify-center">
 	<div>
-	  <div>
-		<input class="input input-bordered join-item" placeholder="Search" bind:value={searchValue} onkeypress={keypressEnter} />
-	  </div>
+		<div>
+			<input
+				class="input input-bordered join-item"
+				placeholder="Search"
+				bind:value={searchValue}
+				onkeypress={keypressEnter}
+			/>
+		</div>
 	</div>
 	<select class="select select-bordered join-item" bind:value={selectedCategoryName}>
-	  <option disabled selected>{categoryFilterNAme}</option>
-	  {#each categorysList as categoryName}
-	  	<option value={categoryName}>{categoryName}</option>
-	  {/each}
+		<option disabled selected>{categoryFilterNAme}</option>
+		{#each categorysList as categoryName}
+			<option value={categoryName}>{categoryName}</option>
+		{/each}
 	</select>
 	<button class="btn join-item" disabled={loading} onclick={searchFunction}>
 		{#if loading}
 			<span class="loading loading-spinner text-info"></span>
 		{/if}
-		Search</button>
+		Search</button
+	>
 	{#if searchValue || selectedCategoryName !== categoryFilterNAme}
-	<button class="btn btn-info join-item" onclick={clearAllFilters}>Clear filter</button>
+		<button class="btn btn-info join-item" onclick={clearAllFilters}>Clear filter</button>
 	{/if}
-	
 </div>
 
 <dialog class="modal" open={isOpenModal}>
-  <div class="modal-box">
-    <h3 class="text-lg font-bold">Warning!</h3>
-    <p class="py-4">По запиту "{searchValue}" нічого не знайдено</p>
-    <div class="modal-action">
-      <form method="dialog">
-        <button class="btn" onclick={ () => (isOpenModal = false) }>Close</button>
-      </form>
-    </div>
-  </div>
+	<div class="modal-box">
+		<h3 class="text-lg font-bold">Warning!</h3>
+		<p class="py-4">По запиту "{searchValue}" нічого не знайдено</p>
+		<div class="modal-action">
+			<form method="dialog">
+				<button class="btn" onclick={() => (isOpenModal = false)}>Close</button>
+			</form>
+		</div>
+	</div>
 </dialog>
 
 <div class="overflow-x-auto">
@@ -150,11 +202,11 @@
 					</td>
 					<td><strong>{product.price} $</strong></td>
 					<th>
-						<button 
+						<button
 							class="btn"
 							onclick={() => {
 								addProductToCart(product);
-								}}
+							}}
 						>
 							<svg
 								class="w-10 h-10"

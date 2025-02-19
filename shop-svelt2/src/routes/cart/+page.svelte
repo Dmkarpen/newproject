@@ -1,5 +1,5 @@
 <script>
-    import { createProductsCart } from "../../runes/cartProducts.svelte";
+    import { createProductsCart } from '../../runes/cartProducts.svelte';
     const { cartProducts, totalPrice, deleteProductFromCart } = createProductsCart();
 </script>
 

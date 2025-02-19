@@ -10,4 +10,11 @@ class ProductController extends Controller
     public function index () {
         return Product::all();
     }
+    public function store (Request $request)
+{
+    // return response(['allData' => $request->all()]);
+
+    return Product::create($request->all());
 }
+}
+
