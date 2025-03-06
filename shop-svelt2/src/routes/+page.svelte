@@ -1,15 +1,9 @@
 <script>
 	import { createProductsCart } from "../runes/cartProducts.svelte";
-    import { goto } from '$app/navigation'; // <-- добавили
-	
-	// 1) Импортируем store:
-	import { allProducts } from '$lib/stores/products.js'; // <-- добавлено
+	import { goto } from '$app/navigation';
 
-	import { allCategories } from '$lib/stores/categories.js';   // <-- добавлено
-	import { get } from 'svelte/store';                          // <-- добавлено
-	
 	const { addProductToCart } = createProductsCart();
-	// import { cartProducts } from "../runes/cartProducts.svelte";
+	// Восстанавливаем обычное состояние:
 	let data = { products: [] };
 
 	let searchValue = '';
@@ -19,88 +13,32 @@
 	let loading = false;
 	let isOpenModal = false;
 
-// 	fetch('https://dummyjson.com/products?limit=0')
-// 		.then((res) => res.json())
-// 		.then(({products}) => {
-// 			console.log('products', products);
-
-// 			products.forEach(element => {
-
-// 				fetch('http://127.0.0.1:8000/api/product-create', {
-// 				method: 'POST',
-// 				headers: {
-// 					'Content-Type': 'application/json'
-// 				},
-// 					body: JSON.stringify(element)
-// 				})
-				
-// 				.then(res => res.json())
-// 				.then (createdProduct =>{
-// 					element.images.forEach(imageUrl => {
-//             const imageData = {
-//               product_id: createdProduct.id,  // связь с реальным продуктом
-//               url: imageUrl
-//             };
-
-//             fetch('http://127.0.0.1:8000/api/product-image', {
-//               method: 'POST',
-//               headers: { 'Content-Type': 'application/json' },
-//               body: JSON.stringify(imageData)
-//             })
-//               .then(res => res.json())
-//               .then(createdImage => {
-//                 console.log('Image created:', createdImage);
-//               })
-//               .catch(err => {
-//                 console.error('Error creating image:', err);
-//               });
-//           });
-//         })
-//         .catch(err => {
-//           console.error('Error creating product:', err);
-//         });
-//     });
-
-//   })
-//   .catch(err => {
-//     console.error('Error fetching dummy products:', err);
-//   });
-
-// Функция для загрузки продуктов
+	// Функция для загрузки продуктов (без проверки store)
 	function fetchProducts(url) {
 		loading = true;
-
-		// 1) Если у нас уже есть продукты в store и это "основной" список:
-		//    (например, url === 'http://127.0.0.1:8000/api/products'),
-		//    то не делаем повторный запрос.
-		const storedProducts = get(allProducts);       // <-- добавлено
-		if (storedProducts.length > 0 && url === 'http://127.0.0.1:8000/api/products') {
-			data.products = storedProducts;
-			loading = false;
-			return;
-		}
-
 		fetch(url)
 			.then((res) => res.json())
 			.then((enterData) => {
 				if (!enterData.length) {
 					isOpenModal = true;
 				} else {
-					data.products = enterData;
-					// 2) Записываем в глобальный store:
-					allProducts.set(enterData); // <-- добавлено
+					data.products = enterData.map((product) => {
+						product.count = 1;
+						return product;
+					});
 				}
 				loading = false;
 			});
 	}
 
+	// Если searchValue пустое — грузим товары
 	$: if (searchValue === '') {
 		fetchProducts('http://127.0.0.1:8000/api/products');
 	}
-   
-   function searchFunction() {
+
+	function searchFunction() {
 		if (searchValue) {
-			fetchProducts(`https://dummyjson.com/products/search?q=${searchValue}`)
+			fetchProducts(`https://dummyjson.com/products/search?q=${searchValue}`);
 		} else if (selectedCategoryName !== categoryFilterNAme) {
 			getProductsByCategory(selectedCategoryName);
 		}
@@ -112,22 +50,13 @@
 		}
 	}
 
-	// Загрузка категорий
+	// Загрузка категорий (без проверки store)
 	(function getProductCategoryList() {
-		// 2) Проверяем, есть ли уже категории в store
-		const storedCats = get(allCategories);           // <-- добавлено
-		if (storedCats.length > 0) {
-			categorysList = storedCats;
-			return;
-		}
-
-		// Иначе делаем запрос
 		fetch('https://dummyjson.com/products/category-list')
-		.then(res => res.json())
-		.then(function (categories) {
-			categorysList = categories;
-			allCategories.set(categories);               // <-- добавлено
-		});
+			.then(res => res.json())
+			.then(function (categories) {
+				categorysList = categories;
+			});
 	})();
 
 	function getProductsByCategory(categoryName) {
@@ -136,8 +65,6 @@
 			.then(res => res.json())
 			.then((enterData) => {
 				data.products = enterData.products;
-				// 3) Записываем и тут:
-				allProducts.set(enterData.products); // <-- добавлено
 				loading = false;
 			});
 	}
@@ -147,11 +74,10 @@
 		selectedCategoryName = categoryFilterNAme;
 		fetchProducts('https://dummyjson.com/products');
 	}
-    // Функция для перехода на страницу товара
-    function openProductPage(id) { 
+
+	function openProductPage(id) {
 		goto(`/product/${id}`);
 	}
-
 </script>
 
 <div class="join flex justify-center">
@@ -175,8 +101,8 @@
 		{#if loading}
 			<span class="loading loading-spinner text-info"></span>
 		{/if}
-		Search</button
-	>
+		Search
+	</button>
 	{#if searchValue || selectedCategoryName !== categoryFilterNAme}
 		<button class="btn btn-info join-item" onclick={clearAllFilters}>Clear filter</button>
 	{/if}
@@ -211,7 +137,6 @@
 			</tr>
 		</thead>
 		<tbody>
-			<!-- row 1 -->
 			{#each data.products as product}
 				<tr>
 					<th>
@@ -227,8 +152,10 @@
 								</div>
 							</div>
 							<div>
-								<div class="font-bold cursor-pointer" onclick={() => openProductPage(product.id)}>{product.title}</div>
-                                <div class="text-sm opacity-50">{product.category}</div>
+								<div class="font-bold cursor-pointer" onclick={() => openProductPage(product.id)}>
+									{product.title}
+								</div>
+								<div class="text-sm opacity-50">{product.category}</div>
 							</div>
 						</div>
 					</td>
@@ -285,9 +212,3 @@
 		</tfoot>
 	</table>
 </div>
-
-<!-- <h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://kit.svelte.dev">kit.svelte.dev</a> to read the documentation</p>
-<strong>20240913 08:44 Test OK</strong>
-<br>
-<a class="btn btn-primary" href="/contacts">Contacts</a> -->

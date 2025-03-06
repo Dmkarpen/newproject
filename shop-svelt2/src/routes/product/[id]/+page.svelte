@@ -1,25 +1,16 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { get } from 'svelte/store';
-  import { allProducts } from '$lib/stores/products.js'; // <-- импорт store
 
   let product = null;
 
   onMount(async () => {
-    // 1. Берём ID из URL /product/[id]
+    // Берём ID из URL /product/[id]
     const { id } = $page.params;
-    const idNum = parseInt(id, 10);
 
-    // 2. Сначала пытаемся найти товар в глобальном store
-    const products = get(allProducts);
-    product = products.find(p => p.id === idNum);
-
-    // 3. Если не нашли — делаем fetch (прямой переход по ссылке)
-    if (!product) {
-      const response = await fetch(`http://127.0.0.1:8000/api/products/${id}`);
-      product = await response.json();
-    }
+    // Делаем запрос к API
+    const response = await fetch(`http://127.0.0.1:8000/api/products/${id}`);
+    product = await response.json();
   });
 </script>
 
