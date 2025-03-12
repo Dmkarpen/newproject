@@ -9,6 +9,29 @@
 		plusProductFromCart,
 		minusProductFromCart
 	} = createProductsCart();
+
+	// Новые переменные для формы
+	let showOrderForm = false;
+	let name = '';
+	let phone = '';
+	let address = '';
+
+	function toggleOrderForm() {
+		showOrderForm = true; // Показать форму и скрыть кнопку Order
+	}
+
+	function submitOrder() {
+		// Здесь можно обработать данные формы
+		console.log('Order submitted:', { name, phone, address });
+
+		// Для примера — просто скрыть форму
+		showOrderForm = false;
+
+		// Или можно очистить поля:
+		name = '';
+		phone = '';
+		address = '';
+	}
 </script>
 
 <div style="text-align:center;">
@@ -123,4 +146,54 @@
 			</tfoot>
 		</table>
 	</div>
+
+	<!-- Кнопка "Order" (показываем только если showOrderForm == false) -->
+	{#if !showOrderForm}
+		<button class="btn btn-primary q-mt-md" on:click={toggleOrderForm}> Order </button>
+	{/if}
+
+	<!-- Если showOrderForm, показываем форму -->
+	{#if showOrderForm}
+		<!-- Блок формы -->
+		<div class="q-mt-md" style="max-width: 300px; margin: 0 auto; text-align: left;">
+			<form on:submit|preventDefault={submitOrder}>
+				<div class="q-mb-md">
+					<label>Name:</label>
+					<input
+						type="text"
+						bind:value={name}
+						placeholder="Your name"
+						class="input input-bordered w-full"
+						required
+					/>
+				</div>
+				<div class="q-mb-md">
+					<label>Phone number:</label>
+					<input
+						type="text"
+						bind:value={phone}
+						placeholder="Your phone"
+						class="input input-bordered w-full"
+						required
+					/>
+				</div>
+				<div class="q-mb-md">
+					<label>Address:</label>
+					<input
+						type="text"
+						bind:value={address}
+						placeholder="Your address"
+						class="input input-bordered w-full"
+						required
+					/>
+				</div>
+				<!-- Кнопка Submit -->
+				<div style="margin-top: 1rem; text-align: center;">
+					<button type="submit" class="btn btn-success">
+						Submit
+					</button>
+				</div>
+			</form>
+		</div>
+	{/if}
 </div>
