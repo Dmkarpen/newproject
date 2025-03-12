@@ -8,13 +8,13 @@ export function createProductsCart() {
 		get countProductsInCart() {
 			return cartProducts.reduce((acc, item) => acc + (item.count || 1), 0);
 		},
-		get totalPrice() {
-			const total = cartProducts.reduce((sum, item) => {
-				const itemCount = item.count || 1;
-				return sum + item.price * itemCount;
-			}, 0);
-			return total.toFixed(2);
+
+		totalPrice: (products) => {
+			return products
+				.reduce((totalPrice, { price, count }) => (totalPrice += price * count), 0)
+				.toFixed(2);
 		},
+
 		deleteProductFromCart(index) {
 			cartProducts.splice(index, 1);
 		},

@@ -32,7 +32,7 @@
           class="card card-compact dropdown-content bg-base-100 z-[1] mt-3 w-52 shadow">
           <div class="card-body">
             <span class="text-lg font-bold">{cart.countProductsInCart}</span>
-            <span class="text-info">Subtotal: ${cart.totalPrice}</span>
+            <span class="text-info">Subtotal: ${cart.totalPrice(cart.cartProducts)}</span>
             <div class="card-actions">
               <a class="btn btn-primary btn-block" href="/cart">View cart</a>
             </div>
