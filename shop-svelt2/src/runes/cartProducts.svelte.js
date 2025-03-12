@@ -1,6 +1,23 @@
 const cartProducts = $state([]);
 
+function saveToLocalStorage() {
+	if (typeof window !== 'undefined') {
+		localStorage.setItem('cartProducts', JSON.stringify(cartProducts));
+	}
+}
+
 export function createProductsCart() {
+	if (typeof window !== 'undefined') {
+		const saved = localStorage.getItem('cartProducts');
+		if (saved) {
+			try {
+				cartProducts.splice(0, cartProducts.length, ...JSON.parse(saved));
+			} catch (err) {
+				console.error('Error parsing cart from localStorage:', err);
+			}
+		}
+	}
+
 	return {
 		get cartProducts() {
 			return cartProducts;
@@ -17,6 +34,7 @@ export function createProductsCart() {
 
 		deleteProductFromCart(index) {
 			cartProducts.splice(index, 1);
+			saveToLocalStorage();
 		},
 		addProductToCart(product) {
 			const existing = cartProducts.find((p) => p.id === product.id);
@@ -25,14 +43,16 @@ export function createProductsCart() {
 			} else {
 				cartProducts.push({
 					...product,
-					count: product.count || 1,
+					count: product.count || 1
 				});
 			}
+			saveToLocalStorage();
 		},
 
 		// Добавляем новые методы:
 		plusProductFromCart(index) {
 			cartProducts[index].count++;
+			saveToLocalStorage();
 		},
 		minusProductFromCart(index) {
 			if (cartProducts[index].count > 1) {
@@ -41,6 +61,7 @@ export function createProductsCart() {
 				// Если count становится 0, удаляем товар из корзины
 				cartProducts.splice(index, 1);
 			}
-		},
+			saveToLocalStorage();
+		}
 	};
 }
