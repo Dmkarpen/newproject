@@ -5,6 +5,7 @@
 	const {
 		cartProducts,
 		totalPrice,
+		clearCart,
 		deleteProductFromCart,
 		plusProductFromCart,
 		minusProductFromCart
@@ -20,17 +21,57 @@
 		showOrderForm = true; // Показать форму и скрыть кнопку Order
 	}
 
-	function submitOrder() {
-		// Здесь можно обработать данные формы
-		console.log('Order submitted:', { name, phone, address });
+	async function submitOrder() {
+		// 1. Собираем данные формы
+		const items = cartProducts.map((p) => ({
+			id: p.id,
+			title: p.title,
+			price: p.price,
+			count: p.count
+		}));
 
-		// Для примера — просто скрыть форму
-		showOrderForm = false;
+		// totalPrice(cartProducts) вернёт строку, например "123.45"
+		const total = totalPrice(cartProducts);
 
-		// Или можно очистить поля:
-		name = '';
-		phone = '';
-		address = '';
+		// 2. Создаём объект для отправки
+		const orderData = {
+			name,
+			phone,
+			address,
+			items,
+			total
+		};
+
+		console.log('Order submitted:', orderData);
+
+		try {
+			// 3. Отправляем POST-запрос на ваш бэкенд (Laravel)
+			const res = await fetch('http://127.0.0.1:8000/api/orders', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(orderData)
+			});
+
+			if (!res.ok) {
+				throw new Error(`Server error: ${res.status}`);
+			}
+
+			const result = await res.json();
+			console.log('Order created successfully:', result);
+
+			clearCart(); // <-- корзина очищена, localStorage обновлён
+
+			// 5. Скрываем форму и очищаем поля
+			showOrderForm = false;
+			name = '';
+			phone = '';
+			address = '';
+		} catch (error) {
+			console.error('Error creating order:', error);
+			// Можно показать пользователю сообщение об ошибке
+		}
 	}
 </script>
 
@@ -189,9 +230,7 @@
 				</div>
 				<!-- Кнопка Submit -->
 				<div style="margin-top: 1rem; text-align: center;">
-					<button type="submit" class="btn btn-success">
-						Submit
-					</button>
+					<button type="submit" class="btn btn-success"> Submit </button>
 				</div>
 			</form>
 		</div>

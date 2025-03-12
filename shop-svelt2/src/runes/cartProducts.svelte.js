@@ -26,6 +26,11 @@ export function createProductsCart() {
 			return cartProducts.reduce((acc, item) => acc + (item.count || 1), 0);
 		},
 
+		clearCart() {
+			cartProducts.splice(0, cartProducts.length);
+			saveToLocalStorage();
+		},
+
 		totalPrice: (products) => {
 			return products
 				.reduce((totalPrice, { price, count }) => (totalPrice += price * count), 0)
