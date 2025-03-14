@@ -6,49 +6,47 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str; // Для генерации токена
 
 class AuthController extends Controller
 {
     /**
      * Регистрация нового пользователя.
-     * Ожидает поля: name, email, password, password_confirmation
-     * Возвращает JSON с данными пользователя.
      */
     public function register(Request $request)
-{
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|string|email|max:255|unique:users',
-        'password' => 'required|string|min:8|confirmed',
-    ]);
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
 
-    // Создаём пользователя
-    $user = User::create([
-        'name' => $request->input('name'),
-        'email' => $request->input('email'),
-        'password' => Hash::make($request->input('password')),
-    ]);
+        // Создаём пользователя
+        $user = User::create([
+            'name' => $request->input('name'),
+            'email' => $request->input('email'),
+            'password' => Hash::make($request->input('password')),
+        ]);
 
-    // Генерируем token
-    $token = Str::random(60);
+        // Генерируем Sanctum-токен
+        $tokenResult = $user->createToken('authToken');
+        $plainTextToken = $tokenResult->plainTextToken;
 
-    // Сохраняем token в поле api_token
-    $user->api_token = $token;
-    $user->save();
+        // Устанавливаем срок действия токена (например, 30 минут)
+        $lastToken = $user->tokens()->latest('id')->first();
+        $lastToken->expires_at = now()->addMinutes(30);
+        $lastToken->save();
 
-    // Возвращаем JSON с user и token
-    return response()->json([
-        'message' => 'User registered successfully',
-        'user' => $user,
-        'token' => $token // <-- теперь фронтенд получит token
-    ], 201);
-}
+        // НЕ возвращаем expires_at, чтобы фронтенд о нём не знал
+        return response()->json([
+            'message' => 'User registered successfully',
+            'user'    => $user,
+            'token'   => $plainTextToken,
+            // 'expires_at' => $lastToken->expires_at->timestamp, // убрали
+        ], 201);
+    }
 
     /**
      * Логин пользователя.
-     * Ожидает поля: email, password
-     * Возвращает JSON с токеном (api_token).
      */
     public function login(Request $request)
     {
@@ -57,29 +55,26 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        // Проверяем email/password через Auth::attempt()
-        // (Хотя можно и вручную искать user, сверять Hash::check, но Auth::attempt удобно)
         if (!Auth::attempt($request->only('email', 'password'))) {
-            return response()->json([
-                'message' => 'Invalid credentials'
-            ], 422);
+            return response()->json(['message' => 'Invalid credentials'], 422);
         }
 
-        // Успешный логин, получаем пользователя
         $user = Auth::user();
 
-        // Генерируем случайный токен
-        $token = Str::random(60);
+        // Создаём Sanctum-токен
+        $tokenResult = $user->createToken('authToken');
+        $plainTextToken = $tokenResult->plainTextToken;
 
-        // Сохраняем в поле api_token
-        $user->api_token = $token;
-        $user->save();
+        // Устанавливаем срок действия (30 минут)
+        $lastToken = $user->tokens()->latest('id')->first();
+        $lastToken->expires_at = now()->addMinutes(30);
+        $lastToken->save();
 
-        // Возвращаем клиенту
+        // НЕ возвращаем expires_at
         return response()->json([
             'message' => 'Logged in successfully',
-            'token' => $token,  // <-- ВАЖНО: клиенту нужно сохранить этот токен
-            'user'  => [
+            'token'   => $plainTextToken,
+            'user'    => [
                 'id'    => $user->id,
                 'name'  => $user->name,
                 'email' => $user->email,
@@ -88,28 +83,16 @@ class AuthController extends Controller
     }
 
     /**
-     * Логаут пользователя.
-     * "Сбрасываем" токен, чтобы он стал недействительным.
+     * Логаут пользователя (удаляем текущий Bearer-токен).
      */
     public function logout(Request $request)
     {
-        // Ищем заголовок Authorization: Bearer <token>
-        $authHeader = $request->header('Authorization');
-        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-            return response()->json(['message' => 'No token provided'], 401);
-        }
-
-        $token = substr($authHeader, 7);
-
-        // Ищем пользователя по этому токену
-        $user = User::where('api_token', $token)->first();
+        $user = $request->user();
         if (!$user) {
-            return response()->json(['message' => 'Invalid token'], 401);
+            return response()->json(['message' => 'Not authenticated'], 401);
         }
 
-        // Сбрасываем токен
-        $user->api_token = null;
-        $user->save();
+        $user->currentAccessToken()->delete();
 
         return response()->json([
             'message' => 'Logged out successfully'
@@ -117,25 +100,15 @@ class AuthController extends Controller
     }
 
     /**
-     * Получить данные о текущем пользователе по токену.
-     * Клиент должен передавать заголовок Authorization: Bearer <token>
+     * Данные о текущем пользователе (маршрут защищён 'auth:sanctum').
      */
     public function me(Request $request)
     {
-        $authHeader = $request->header('Authorization');
-        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-            return response()->json(['message' => 'No token provided'], 401);
-        }
-
-        $token = substr($authHeader, 7);
-
-        // Ищем пользователя по token
-        $user = User::where('api_token', $token)->first();
+        $user = $request->user();
         if (!$user) {
-            return response()->json(['message' => 'Invalid token'], 401);
+            return response()->json(['message' => 'Not logged in'], 401);
         }
 
-        // Возвращаем JSON
         return response()->json([
             'id'    => $user->id,
             'name'  => $user->name,

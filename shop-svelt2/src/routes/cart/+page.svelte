@@ -188,8 +188,8 @@
 		</table>
 	</div>
 
-	<!-- Кнопка "Order" (показываем только если showOrderForm == false) -->
-	{#if !showOrderForm}
+	<!-- Кнопка "Order" (показываем только если showOrderForm == false и cartProducts.length > 0) -->
+	{#if !showOrderForm && cartProducts.length > 0}
 		<button class="btn btn-primary q-mt-md" on:click={toggleOrderForm}> Order </button>
 	{/if}
 
