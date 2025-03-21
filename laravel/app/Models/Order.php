@@ -15,6 +15,7 @@ class Order extends Model
         'phone',
         'address',
         'total',
+        'status',
     ];
 
     // Связь "один ко многим" с OrderItem
