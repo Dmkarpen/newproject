@@ -7,6 +7,7 @@ use App\Http\Controllers\ImageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OrderController;
 use App\Http\Middleware\CheckTokenExpired;
+use App\Http\Controllers\ContactController;
 
 Route::get('/products', [ProductController::class, 'index']);
 Route::post('/product-create', [ProductController::class, 'store']);
@@ -32,3 +33,5 @@ Route::get('/orders/{id}', [OrderController::class, 'show']);
 Route::put('/orders/{id}', [OrderController::class, 'update']);
 Route::delete('/orders/{id}', [OrderController::class, 'destroy']);
 Route::delete('/orders/{orderId}/items/{itemId}', [OrderController::class, 'removeItem']);
+
+Route::post('/contact-messages', [ContactController::class, 'store']);
