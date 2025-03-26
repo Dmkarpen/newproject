@@ -1,16 +1,22 @@
 <script>
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
+	import { isLoading } from '$lib/stores/loading';
 
 	let orderId = $page.params.id;
 	let order = null;
+	let stockMap = {}; // id -> stock
+	let stockErrors = []; // список product_id з помилками
 
-	// Сообщения об успехе/ошибке
 	let successMessage = '';
 	let errorMessage = '';
 
-	// Загружаем заказ при монтировании
+	let showProductModal = false;
+	let productSearch = '';
+	let searchResults = [];
+
 	onMount(async () => {
+		isLoading.set(true);
 		try {
 			const res = await fetch(`http://127.0.0.1:8000/api/orders/${orderId}`);
 			if (!res.ok) {
@@ -18,12 +24,14 @@
 				return;
 			}
 			order = await res.json();
+			await checkStock();
 		} catch (err) {
 			errorMessage = 'Error fetching order: ' + err;
+		} finally {
+			isLoading.set(false);
 		}
 	});
 
-	// Реактивный пересчёт total (округление до 2 знаков)
 	$: if (order && order.items) {
 		let sum = 0;
 		for (const item of order.items) {
@@ -32,10 +40,44 @@
 		order.total = parseFloat(sum.toFixed(2));
 	}
 
-	// Сохранить изменения (PUT /api/orders/{id})
+	async function checkStock() {
+		if (!order?.items?.length) return;
+		const ids = [...new Set(order.items.map((i) => i.product_id))];
+		try {
+			const res = await fetch('http://127.0.0.1:8000/api/products/stock-check', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ids })
+			});
+
+			const products = await res.json();
+			stockMap = {};
+			products.forEach((p) => {
+				stockMap[p.id] = p.stock;
+			});
+
+			stockErrors = [];
+			order.items.forEach((item) => {
+				if (item.count > (stockMap[item.product_id] ?? 0)) {
+					stockErrors.push(item.product_id);
+				}
+			});
+		} catch (e) {
+			console.error('Failed to check stock:', e);
+		}
+	}
+
 	async function updateOrder() {
 		successMessage = '';
 		errorMessage = '';
+		isLoading.set(true);
+
+		await checkStock();
+		if (stockErrors.length > 0) {
+			errorMessage = 'Some products exceed stock availability';
+			isLoading.set(false);
+			return;
+		}
 
 		const body = {
 			name: order.name,
@@ -43,7 +85,6 @@
 			address: order.address,
 			total: order.total,
 			status: order.status,
-			// Отправляем все items
 			items: order.items.map((i) => ({
 				id: i.id,
 				product_id: i.product_id,
@@ -68,39 +109,55 @@
 			}
 		} catch (err) {
 			errorMessage = 'Error updating order: ' + err;
+		} finally {
+			isLoading.set(false);
 		}
 	}
 
-	// Добавить новый товар (id=null), пусть админ укажет product_id, count
-	// (title/price подтянутся на бэкенде или при сохранении)
-	function addItem() {
-		if (!order.items) {
-			order.items = [];
+	function openProductModal() {
+		showProductModal = true;
+		productSearch = '';
+		searchResults = [];
+	}
+
+	function closeProductModal() {
+		showProductModal = false;
+		productSearch = '';
+		searchResults = [];
+	}
+
+	async function searchProducts() {
+		if (!productSearch.trim()) return;
+		const res = await fetch(`http://127.0.0.1:8000/api/products/search?q=${productSearch}`);
+		if (res.ok) {
+			searchResults = await res.json();
 		}
+	}
+
+	function selectProduct(product) {
 		order.items.push({
 			id: null,
-			product_id: '',
-			title: '', // не редактируем на фронте
-			price: 0, // не редактируем на фронте
+			product_id: product.id,
+			title: product.title,
+			price: product.price,
 			count: 1
 		});
-		// Обновляем ссылку, чтобы Svelte увидел изменения
 		order.items = [...order.items];
+		closeProductModal();
+		checkStock();
 	}
 
-	// Удалить товар (DELETE /api/orders/{orderId}/items/{itemId})
 	async function removeItem(item, index) {
 		successMessage = '';
 		errorMessage = '';
 
-		// Если id=null => товар ещё не в БД
 		if (!item.id) {
 			order.items.splice(index, 1);
 			order.items = [...order.items];
 			return;
 		}
 
-		// Иначе делаем запрос DELETE
+		isLoading.set(true);
 		try {
 			const res = await fetch(`http://127.0.0.1:8000/api/orders/${orderId}/items/${item.id}`, {
 				method: 'DELETE',
@@ -115,46 +172,46 @@
 			}
 		} catch (err) {
 			errorMessage = 'Error removing item: ' + err;
+		} finally {
+			isLoading.set(false);
 		}
 	}
 </script>
 
 {#if order}
-	<h3 class="page-title">Edit Order {order.id}</h3>
+	<h2 class="text-2xl font-bold mb-4">Edit Order #{order.id}</h2>
 
-	<!-- Сообщения -->
 	{#if successMessage}
-		<p class="success-msg">{successMessage}</p>
+		<div class="alert alert-success mb-4">{successMessage}</div>
 	{/if}
 	{#if errorMessage}
-		<p class="error-msg">{errorMessage}</p>
+		<div class="alert alert-error mb-4">{errorMessage}</div>
 	{/if}
 
-	<!-- Поля заказа -->
-	<div class="edit-form">
-		<div class="form-group">
-			<label>Name:</label>
-			<input bind:value={order.name} />
+	<!-- Верхний блок редактирования -->
+	<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 max-w-5xl">
+		<div>
+			<label class="label">Name</label>
+			<input class="input input-bordered w-full" bind:value={order.name} />
 		</div>
-
-		<div class="form-group">
-			<label>Phone:</label>
-			<input bind:value={order.phone} />
+		<div>
+			<label class="label">Phone</label>
+			<input class="input input-bordered w-full" bind:value={order.phone} />
 		</div>
-
-		<div class="form-group">
-			<label>Address:</label>
-			<input bind:value={order.address} />
+		<div class="md:col-span-2">
+			<label class="label">Address</label>
+			<input class="input input-bordered w-full" bind:value={order.address} />
 		</div>
+	</div>
 
-		<div class="form-group">
-			<label>Total:</label>
-			<input type="number" bind:value={order.total} disabled />
+	<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 max-w-5xl">
+		<div>
+			<label class="label">Total</label>
+			<input class="input input-bordered w-full" type="number" bind:value={order.total} disabled />
 		</div>
-
-		<div class="form-group">
-			<label>Status:</label>
-			<select bind:value={order.status}>
+		<div>
+			<label class="label">Status</label>
+			<select class="select select-bordered w-full" bind:value={order.status}>
 				<option value="pending">Pending</option>
 				<option value="processing">Processing</option>
 				<option value="completed">Completed</option>
@@ -163,164 +220,93 @@
 		</div>
 	</div>
 
-	<h4 class="page-title">Order Items</h4>
-	<table class="items-table">
-		<thead>
-			<tr>
-				<th>ID</th>
-				<th>Product ID</th>
-				<!-- title / price отображаем, но без возможности редактирования -->
-				<th>Title</th>
-				<th>Price</th>
-				<th>Count</th>
-				<th>Actions</th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each order.items as item, index}
+	<h3 class="text-lg font-semibold mb-2">Order Items</h3>
+	<div class="overflow-x-auto">
+		<table class="table table-zebra w-full">
+			<thead>
 				<tr>
-					<td>{item.id}</td>
-					<td>
-						<input type="number" bind:value={item.product_id} />
-					</td>
-					<!-- Просто текст, нельзя менять -->
-					<td>{item.title}</td>
-					<td>{item.price}</td>
-					<td>
-						<input type="number" min="1" bind:value={item.count} />
-					</td>
-					<td>
-						<button class="delete-btn" on:click={() => removeItem(item, index)}>Remove</button>
-					</td>
+					<th>ID</th>
+					<th>Product ID</th>
+					<th>Title</th>
+					<th>Price</th>
+					<th>Count</th>
+					<th>Stock</th>
+					<th></th>
 				</tr>
-			{/each}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				{#each order.items as item, index}
+					<tr class={stockErrors.includes(item.product_id) ? 'bg-red-100' : ''}>
+						<td>{item.id ?? 'new'}</td>
+						<td>{item.product_id}</td>
+						<td>{item.title}</td>
+						<td>{item.price}</td>
+						<td
+							><input
+								type="number"
+								class="input input-bordered input-sm w-20"
+								bind:value={item.count}
+								min="1"
+								on:change={checkStock}
+							/></td
+						>
+						<td>{stockMap[item.product_id] ?? '-'}</td>
+						<td
+							><button class="btn btn-sm btn-error" on:click={() => removeItem(item, index)}
+								>Delete</button
+							></td
+						>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
 
-	<!-- Кнопка "Add Item" (зелёная) -->
-	<button class="add-btn" on:click={addItem}>Add item</button>
+	<div class="flex gap-4 mt-4">
+		<button class="btn btn-success" on:click={openProductModal}>Add item</button>
+		<button class="btn btn-primary" on:click={updateOrder} disabled={stockErrors.length > 0}
+			>Save</button
+		>
+	</div>
 
-	<!-- Кнопка "Save" (синий, как раньше) -->
-	<button class="save-btn" on:click={updateOrder}>Save</button>
+	<!-- Modal -->
+	{#if showProductModal}
+		<dialog class="modal modal-open">
+			<div class="modal-box">
+				<h3 class="font-bold text-lg mb-2">Add Product to Order</h3>
+				<input
+					type="text"
+					placeholder="Search products..."
+					class="input input-bordered w-full mb-2"
+					bind:value={productSearch}
+					on:input={searchProducts}
+				/>
+
+				<ul class="max-h-64 overflow-auto">
+					{#each searchResults as product}
+						<li>
+							<button
+								class="btn btn-sm btn-ghost justify-start w-full"
+								on:click={() => selectProduct(product)}
+							>
+								{product.title} — ${product.price}
+							</button>
+						</li>
+					{/each}
+				</ul>
+
+				<div class="modal-action">
+					<button class="btn" on:click={closeProductModal}>Cancel</button>
+				</div>
+			</div>
+		</dialog>
+	{/if}
 {:else if errorMessage}
-	<p class="error-msg">{errorMessage}</p>
+	<p class="text-red-500">{errorMessage}</p>
 {:else}
 	<p>Loading order...</p>
 {/if}
 
 <style>
-	/* заголовок */
-	.page-title {
-		font-size: 1.5rem; /* больше размер */
-		font-weight: bold; /* жирный */
-		margin-bottom: 1rem; /* небольшой отступ снизу */
-	}
-
-	/* Общие стили формы */
-	.edit-form {
-		max-width: 400px;
-		background-color: #fafafa;
-		border: 1px solid #ddd;
-		padding: 1rem;
-		border-radius: 4px;
-		margin-bottom: 1rem;
-	}
-
-	.form-group {
-		margin-bottom: 1rem;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.form-group label {
-		font-weight: bold;
-		margin-bottom: 0.3rem;
-	}
-
-	.form-group input,
-	.form-group select {
-		padding: 0.5rem;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-	}
-
-	/* Стили таблицы */
-	.items-table {
-		border-collapse: collapse;
-		width: 100%;
-		margin-top: 1rem;
-	}
-
-	.items-table th,
-	.items-table td {
-		border: 1px solid #ccc;
-		padding: 0.5rem;
-		text-align: left;
-	}
-
-	.items-table th {
-		background-color: #f2f2f2;
-		font-weight: bold;
-	}
-
-	.items-table input[type='number'] {
-		width: 60px; /* или сколько нужно */
-	}
-
-	/* Сообщения */
-	.success-msg {
-		color: green;
-		background-color: #e6ffe6;
-		border: 1px solid green;
-		padding: 0.5rem;
-		margin-bottom: 1rem;
-	}
-	.error-msg {
-		color: red;
-		background-color: #ffe5e5;
-		border: 1px solid red;
-		padding: 0.5rem;
-		margin-bottom: 1rem;
-	}
-
-	/* Кнопка "Save" (синяя, как было) */
-	.save-btn {
-		margin-top: 1rem;
-		padding: 0.6rem 1rem;
-		background-color: #007bff;
-		color: #fff;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-	.save-btn:hover {
-		background-color: #0056b3;
-	}
-
-	/* Кнопка "Add item" (зелёная) */
-	.add-btn {
-		margin-right: 1rem;
-		padding: 0.6rem 1rem;
-		background-color: #4caf50; /* Зелёный */
-		color: #fff;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-	.add-btn:hover {
-		background-color: #45a049;
-	}
-
-	/* Кнопка "Remove" (красная) */
-	.delete-btn {
-		background-color: #f44336; /* Красный */
-		color: #fff;
-		border: none;
-		border-radius: 4px;
-		padding: 0.4rem 0.8rem;
-		cursor: pointer;
-	}
-	.delete-btn:hover {
-		background-color: #e53935;
-	}
+	/* без стилей */
 </style>

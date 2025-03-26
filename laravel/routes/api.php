@@ -12,7 +12,9 @@ use App\Http\Controllers\ContactController;
 Route::get('/products', [ProductController::class, 'index']);
 Route::post('/product-create', [ProductController::class, 'store']);
 Route::post('/product-image', [ImageController::class, 'store']);
+Route::get('/products/search', [ProductController::class, 'search']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
+Route::post('/products/stock-check', [ProductController::class, 'stockCheck']);
 
 Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.login');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
@@ -16,45 +17,66 @@ class OrderController extends Controller
      *  - total: string (или число)
      */
     public function store(Request $request)
-    {
-        // Валидируем
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:50',
-            'address' => 'required|string|max:500',
-            'items' => 'required|array',
-            'items.*.id' => 'nullable|integer', // product_id (может быть null)
-            'items.*.title' => 'required|string|max:255',
-            'items.*.price' => 'required|numeric',
-            'items.*.count' => 'required|integer|min:1',
-            'total' => 'required|numeric',
-        ]);
+{
+    // Валидируем
+    $data = $request->validate([
+        'name' => 'required|string|max:255',
+        'phone' => 'required|string|max:50',
+        'address' => 'required|string|max:500',
+        'items' => 'required|array',
+        'items.*.id' => 'required|integer|exists:products,id', // обов'язковий product_id
+        'items.*.title' => 'required|string|max:255',
+        'items.*.price' => 'required|numeric',
+        'items.*.count' => 'required|integer|min:1',
+        'total' => 'required|numeric',
+    ]);
 
-        // Создаём запись в таблице orders
-        $order = Order::create([
-            'name' => $data['name'],
-            'phone' => $data['phone'],
-            'address' => $data['address'],
-            'total' => $data['total'],
-        ]);
-
-        // Сохраняем товары
-        foreach ($data['items'] as $item) {
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $item['id'] ?? null, // если передаёте id
-                'title' => $item['title'],
-                'price' => $item['price'],
-                'count' => $item['count'],
-            ]);
+    // Перевірка залишків
+    $errors = [];
+    foreach ($data['items'] as $item) {
+        $product = Product::findOrFail($item['id']);
+        if ($item['count'] > $product->stock) {
+            $errors[] = "{$product->title} - only {$product->stock} left in stock";
         }
-
-        // Возвращаем JSON-ответ
-        return response()->json([
-            'message' => 'Order created successfully',
-            'order_id' => $order->id,
-        ], 201);
     }
+
+    if (!empty($errors)) {
+        return response()->json([
+            'message' => 'Stock issues detected',
+            'errors' => $errors,
+        ], 422);
+    }
+
+    // Створення замовлення
+    $order = Order::create([
+        'name' => $data['name'],
+        'phone' => $data['phone'],
+        'address' => $data['address'],
+        'total' => $data['total'],
+    ]);
+
+    foreach ($data['items'] as $item) {
+        $product = Product::findOrFail($item['id']);
+
+        // Зберігаємо позицію замовлення
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'title' => $product->title,
+            'price' => $product->price,
+            'count' => $item['count'],
+        ]);
+
+        // Віднімаємо зі складу
+        $product->stock -= $item['count'];
+        $product->save();
+    }
+
+    return response()->json([
+        'message' => 'Order created successfully',
+        'order_id' => $order->id,
+    ], 201);
+}
 
     /**
      * Пример: получить список всех заказов
@@ -104,7 +126,7 @@ class OrderController extends Controller
             foreach ($data['items'] as $itemData) {
                 if (!empty($itemData['id'])) {
                     // Обновляем существующий item
-                    $item = \App\Models\OrderItem::where('order_id', $order->id)
+                    $item = OrderItem::where('order_id', $order->id)
                         ->find($itemData['id']);
                     if ($item) {
                         // Находим product, чтобы вдруг обновить price/title, если нужно
@@ -112,7 +134,7 @@ class OrderController extends Controller
                         // может не менять product_id.
                         // В зависимости от вашей логики
                         if ($itemData['product_id'] != $item->product_id) {
-                            $product = \App\Models\Product::findOrFail($itemData['product_id']);
+                            $product = Product::findOrFail($itemData['product_id']);
                             $item->product_id = $product->id;
                             $item->title = $product->title;
                             $item->price = $product->price;
@@ -123,9 +145,9 @@ class OrderController extends Controller
                 } else {
                     // Новый item (id=null)
                     // Найдём product
-                    $product = \App\Models\Product::findOrFail($itemData['product_id']);
+                    $product = Product::findOrFail($itemData['product_id']);
 
-                    \App\Models\OrderItem::create([
+                    OrderItem::create([
                         'order_id' => $order->id,
                         'product_id' => $product->id,
                         'title' => $product->title,
@@ -156,7 +178,7 @@ class OrderController extends Controller
     {
         $order = Order::findOrFail($orderId);
         // Ищем OrderItem, принадлежащий этому заказу
-        $item = \App\Models\OrderItem::where('order_id', $order->id)
+        $item = OrderItem::where('order_id', $order->id)
             ->findOrFail($itemId);
 
         $item->delete();

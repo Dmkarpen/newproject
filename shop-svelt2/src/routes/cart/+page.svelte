@@ -1,7 +1,8 @@
 <script>
+	import { onMount } from 'svelte';
 	import { createProductsCart } from '../../runes/cartProducts.svelte';
+	import { isLoading } from '../../lib/stores/loading';
 
-	// Импортируем нужные методы и геттеры
 	const {
 		cartProducts,
 		totalPrice,
@@ -11,29 +12,73 @@
 		minusProductFromCart
 	} = createProductsCart();
 
-	// Новые переменные для формы
 	let showOrderForm = false;
 	let name = '';
 	let phone = '';
 	let address = '';
 
+	let stockErrors = []; // Список ID товарів, в яких є проблема з кількістю
+	let stockMessages = []; // Тексти помилок для відображення
+
+	function onQuantityChange(index) {
+		// чекаємо до наступного циклу подій, щоб count вже був оновлений
+		setTimeout(() => {
+			checkStock();
+		}, 0);
+	}
+
 	function toggleOrderForm() {
-		showOrderForm = true; // Показать форму и скрыть кнопку Order
+		showOrderForm = true;
+	}
+
+	async function checkStock() {
+		isLoading.set(true);
+		const ids = cartProducts.map((p) => p.id);
+		try {
+			const res = await fetch('http://127.0.0.1:8000/api/products/stock-check', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ ids })
+			});
+
+			if (!res.ok) throw new Error('Failed to check stock');
+
+			const products = await res.json();
+			stockErrors = [];
+			stockMessages = [];
+
+			for (const cartItem of cartProducts) {
+				const matched = products.find((p) => p.id === cartItem.id);
+				if (matched && cartItem.count > matched.stock) {
+					stockErrors.push(cartItem.id);
+					stockMessages.push(`${cartItem.title}: only ${matched.stock} left in stock`);
+				}
+			}
+		} catch (e) {
+			console.error('Stock check error:', e);
+		} finally {
+			isLoading.set(false);
+		}
 	}
 
 	async function submitOrder() {
-		// 1. Собираем данные формы
+		isLoading.set(true);
+		await checkStock();
+		if (stockErrors.length > 0) {
+			isLoading.set(false);
+			return;
+		}
+
 		const items = cartProducts.map((p) => ({
 			id: p.id,
 			title: p.title,
 			price: p.price,
 			count: p.count
 		}));
-
-		// totalPrice(cartProducts) вернёт строку, например "123.45"
 		const total = totalPrice(cartProducts);
 
-		// 2. Создаём объект для отправки
 		const orderData = {
 			name,
 			phone,
@@ -42,10 +87,7 @@
 			total
 		};
 
-		console.log('Order submitted:', orderData);
-
 		try {
-			// 3. Отправляем POST-запрос на ваш бэкенд (Laravel)
 			const res = await fetch('http://127.0.0.1:8000/api/orders', {
 				method: 'POST',
 				headers: {
@@ -54,26 +96,36 @@
 				body: JSON.stringify(orderData)
 			});
 
-			if (!res.ok) {
-				throw new Error(`Server error: ${res.status}`);
-			}
+			if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-			const result = await res.json();
-			console.log('Order created successfully:', result);
-
-			clearCart(); // <-- корзина очищена, localStorage обновлён
-
-			// 5. Скрываем форму и очищаем поля
+			await res.json();
+			clearCart();
 			showOrderForm = false;
 			name = '';
 			phone = '';
 			address = '';
 		} catch (error) {
-			console.error('Error creating order:', error);
-			// Можно показать пользователю сообщение об ошибке
+			console.error('Order error:', error);
+		} finally {
+			isLoading.set(false);
 		}
 	}
+
+	onMount(() => {
+		checkStock();
+	});
 </script>
+
+{#if stockMessages.length > 0}
+	<div class="alert alert-error my-4">
+		<h3 class="font-bold">Stock issues found:</h3>
+		<ul>
+			{#each stockMessages as msg}
+				<li>{msg}</li>
+			{/each}
+		</ul>
+	</div>
+{/if}
 
 <div style="text-align:center;">
 	<h1>Welcome to Cart Products</h1>
@@ -98,7 +150,7 @@
 			</thead>
 			<tbody>
 				{#each cartProducts as product, index}
-					<tr>
+					<tr class={stockErrors.includes(product.id) ? 'bg-red-100' : ''}>
 						<!-- Чекбокс -->
 						<th>
 							<label>
@@ -133,9 +185,27 @@
 
 						<!-- Столбец Count: кнопки и отображение -->
 						<td>
-							<button class="btn btn-xs" on:click={() => minusProductFromCart(index)}>-</button>
+							<button
+								class="btn btn-xs"
+								on:click={() => {
+									minusProductFromCart(index);
+									onQuantityChange(index);
+								}}
+							>
+								-
+							</button>
+
 							<span class="mx-2">{product.count}</span>
-							<button class="btn btn-xs" on:click={() => plusProductFromCart(index)}>+</button>
+
+							<button
+								class="btn btn-xs"
+								on:click={() => {
+									plusProductFromCart(index);
+									onQuantityChange(index);
+								}}
+							>
+								+
+							</button>
 						</td>
 
 						<!-- Кнопка удаления всей позиции -->
@@ -190,7 +260,13 @@
 
 	<!-- Кнопка "Order" (показываем только если showOrderForm == false и cartProducts.length > 0) -->
 	{#if !showOrderForm && cartProducts.length > 0}
-		<button class="btn btn-primary q-mt-md" on:click={toggleOrderForm}> Order </button>
+		<button
+			class="btn btn-primary q-mt-md"
+			disabled={stockErrors.length > 0}
+			on:click={toggleOrderForm}
+		>
+			Order
+		</button>
 	{/if}
 
 	<!-- Если showOrderForm, показываем форму -->

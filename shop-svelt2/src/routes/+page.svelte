@@ -1,6 +1,7 @@
 <script>
-	import { createProductsCart } from "../runes/cartProducts.svelte";
+	import { createProductsCart } from '../runes/cartProducts.svelte';
 	import { goto } from '$app/navigation';
+	import { isLoading } from '../lib/stores/loading';
 
 	const { addProductToCart } = createProductsCart();
 	// Восстанавливаем обычное состояние:
@@ -16,6 +17,8 @@
 	// Функция для загрузки продуктов (без проверки store)
 	function fetchProducts(url) {
 		loading = true;
+		isLoading.set(true); // <-- Показываем глобальный лоадер
+
 		fetch(url)
 			.then((res) => res.json())
 			.then((enterData) => {
@@ -28,6 +31,11 @@
 					});
 				}
 				loading = false;
+				isLoading.set(false); // <-- Скрываем лоадер
+			})
+			.catch(() => {
+				loading = false;
+				isLoading.set(false); // <-- На случай ошибки
 			});
 	}
 
@@ -53,7 +61,7 @@
 	// Загрузка категорий (без проверки store)
 	(function getProductCategoryList() {
 		fetch('https://dummyjson.com/products/category-list')
-			.then(res => res.json())
+			.then((res) => res.json())
 			.then(function (categories) {
 				categorysList = categories;
 			});
@@ -61,11 +69,18 @@
 
 	function getProductsByCategory(categoryName) {
 		loading = true;
+		isLoading.set(true); // <-- Показываем лоадер
+
 		fetch(`https://dummyjson.com/products/category/${categoryName}`)
-			.then(res => res.json())
+			.then((res) => res.json())
 			.then((enterData) => {
 				data.products = enterData.products;
 				loading = false;
+				isLoading.set(false); // <-- Скрываем лоадер
+			})
+			.catch(() => {
+				loading = false;
+				isLoading.set(false); // <-- На случай ошибки
 			});
 	}
 
@@ -133,6 +148,7 @@
 				<th>Product</th>
 				<th>Description</th>
 				<th>Price</th>
+				<th>Stock</th>
 				<th></th>
 			</tr>
 		</thead>
@@ -165,12 +181,20 @@
 						<span class="badge badge-ghost badge-sm">{product.warrantyInformation}</span>
 					</td>
 					<td><strong>{product.price} $</strong></td>
+					<td>
+						{#if product.available}
+							<span class="badge badge-success">In stock</span>
+						{:else}
+							<span class="badge badge-error">Out of stock</span>
+						{/if}
+					</td>
 					<th>
 						<button
 							class="btn"
 							onclick={() => {
 								addProductToCart(product);
 							}}
+							disabled={!product.available}
 						>
 							<svg
 								class="w-10 h-10"
