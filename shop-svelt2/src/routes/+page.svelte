@@ -1,12 +1,12 @@
 <script>
+	import { onMount } from 'svelte';
 	import { createProductsCart } from '../runes/cartProducts.svelte';
 	import { goto } from '$app/navigation';
 	import { isLoading } from '../lib/stores/loading';
 
 	const { addProductToCart } = createProductsCart();
-	// Восстанавливаем обычное состояние:
-	let data = { products: [] };
 
+	let data = { products: [] };
 	let searchValue = '';
 	let categorysList = [];
 	let selectedCategoryName;
@@ -14,80 +14,118 @@
 	let loading = false;
 	let isOpenModal = false;
 
-	// Функция для загрузки продуктов (без проверки store)
-	function fetchProducts(url) {
-		loading = true;
-		isLoading.set(true); // <-- Показываем глобальный лоадер
+	// --- Головне завантаження ---
+	onMount(async () => {
+		isLoading.set(true);
+		await Promise.all([loadAllProducts(), getProductCategoryList()]);
+		isLoading.set(false);
+	});
 
-		fetch(url)
-			.then((res) => res.json())
-			.then((enterData) => {
-				if (!enterData.length) {
-					isOpenModal = true;
-				} else {
-					data.products = enterData.map((product) => {
-						product.count = 1;
-						return product;
-					});
-				}
-				loading = false;
-				isLoading.set(false); // <-- Скрываем лоадер
-			})
-			.catch(() => {
-				loading = false;
-				isLoading.set(false); // <-- На случай ошибки
-			});
+	// --- Завантажити всі товари ---
+	async function loadAllProducts() {
+		await fetchProducts('http://127.0.0.1:8000/api/products');
 	}
 
-	// Если searchValue пустое — грузим товары
-	$: if (searchValue === '') {
-		fetchProducts('http://127.0.0.1:8000/api/products');
-	}
+	// --- Завантажити категорії ---
+	async function getProductCategoryList() {
+		try {
+			const res = await fetch('http://127.0.0.1:8000/api/categories');
+			if (!res.ok) return;
 
-	function searchFunction() {
-		if (searchValue) {
-			fetchProducts(`https://dummyjson.com/products/search?q=${searchValue}`);
-		} else if (selectedCategoryName !== categoryFilterNAme) {
-			getProductsByCategory(selectedCategoryName);
+			categorysList = await res.json();
+		} catch (e) {
+			console.error('Error loading categories:', e);
 		}
 	}
 
-	function keypressEnter(value) {
-		if (value.key === 'Enter') {
+	// --- Завантаження товарів (по URL) ---
+	async function fetchProducts(url) {
+		loading = true;
+		isLoading.set(true);
+
+		try {
+			const res = await fetch(url);
+			if (!res.ok) throw new Error('Failed to fetch');
+
+			const enterData = await res.json();
+			const rawProducts = Array.isArray(enterData) ? enterData : enterData.products;
+
+			if (!rawProducts?.length) {
+				isOpenModal = true;
+				data.products = [];
+			} else {
+				data.products = rawProducts.map((product) => ({
+					...product,
+					count: 1
+				}));
+			}
+		} catch (e) {
+			console.error('Error fetching products:', e);
+		} finally {
+			loading = false;
+			isLoading.set(false);
+		}
+	}
+
+	// --- Категорія обрана вручну ---
+	$: if (
+		selectedCategoryName &&
+		selectedCategoryName !== categoryFilterNAme &&
+		searchValue === ''
+	) {
+		getProductsByCategory(selectedCategoryName);
+	}
+
+	// --- Отримання товарів по категорії ---
+	async function getProductsByCategory(categoryName) {
+		await fetchProducts(`http://127.0.0.1:8000/api/products/category/${categoryName}`);
+	}
+
+	// --- Пошук з урахуванням категорії ---
+	async function searchFunction() {
+		if (!searchValue) {
+			if (selectedCategoryName && selectedCategoryName !== categoryFilterNAme) {
+				await getProductsByCategory(selectedCategoryName);
+			} else {
+				await loadAllProducts();
+			}
+			return;
+		}
+
+		try {
+			isLoading.set(true);
+			const res = await fetch(`http://127.0.0.1:8000/api/products/search?q=${searchValue}`);
+			if (!res.ok) throw new Error('Search failed');
+			let results = await res.json();
+
+			if (selectedCategoryName && selectedCategoryName !== categoryFilterNAme) {
+				results = results.filter((p) => p.category === selectedCategoryName);
+			}
+
+			if (!results.length) {
+				isOpenModal = true;
+				data.products = [];
+			} else {
+				data.products = results.map((p) => ({ ...p, count: 1 }));
+			}
+		} catch (e) {
+			console.error('Search error:', e);
+		} finally {
+			isLoading.set(false);
+		}
+	}
+
+	function keypressEnter(e) {
+		if (e.key === 'Enter') {
 			searchFunction();
 		}
 	}
 
-	// Загрузка категорий (без проверки store)
-	(function getProductCategoryList() {
-		fetch('https://dummyjson.com/products/category-list')
-			.then((res) => res.json())
-			.then(function (categories) {
-				categorysList = categories;
-			});
-	})();
-
-	function getProductsByCategory(categoryName) {
-		loading = true;
-		isLoading.set(true); // <-- Показываем лоадер
-
-		fetch(`https://dummyjson.com/products/category/${categoryName}`)
-			.then((res) => res.json())
-			.then((enterData) => {
-				data.products = enterData.products;
-				loading = false;
-				isLoading.set(false); // <-- Скрываем лоадер
-			})
-			.catch(() => {
-				loading = false;
-				isLoading.set(false); // <-- На случай ошибки
-			});
-	}
-
+	// --- Очистити фільтри ---
 	function clearAllFilters() {
 		searchValue = '';
 		selectedCategoryName = categoryFilterNAme;
-		fetchProducts('https://dummyjson.com/products');
+		loadAllProducts();
 	}
 
 	function openProductPage(id) {
@@ -95,7 +133,7 @@
 	}
 </script>
 
-<div class="join flex justify-center">
+<div class="join flex justify-center mt-10">
 	<div>
 		<div>
 			<input

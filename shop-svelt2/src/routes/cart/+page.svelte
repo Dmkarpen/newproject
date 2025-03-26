@@ -19,6 +19,7 @@
 
 	let stockErrors = []; // Список ID товарів, в яких є проблема з кількістю
 	let stockMessages = []; // Тексти помилок для відображення
+	let orderSuccessMessage = '';
 
 	function onQuantityChange(index) {
 		// чекаємо до наступного циклу подій, щоб count вже був оновлений
@@ -104,6 +105,10 @@
 			name = '';
 			phone = '';
 			address = '';
+			orderSuccessMessage = 'Your order has been successfully placed!';
+			// setTimeout(() => {
+			// 	orderSuccessMessage = '';
+			// }, 5000); // прибираємо повідомлення через 5 секунд
 		} catch (error) {
 			console.error('Order error:', error);
 		} finally {
@@ -127,8 +132,14 @@
 	</div>
 {/if}
 
+{#if orderSuccessMessage}
+	<div class="alert alert-success my-4">
+		<span>{orderSuccessMessage}</span>
+	</div>
+{/if}
+
 <div style="text-align:center;">
-	<h1>Welcome to Cart Products</h1>
+	<h1 class="text-4xl font-bold text-center my-8 text-primary">🛒 Your Shopping Cart</h1>
 	<div class="overflow-x-auto">
 		<table class="table">
 			<!-- head -->
