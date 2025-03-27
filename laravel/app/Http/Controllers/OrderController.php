@@ -17,74 +17,88 @@ class OrderController extends Controller
      *  - total: string (или число)
      */
     public function store(Request $request)
-{
-    // Валидируем
-    $data = $request->validate([
-        'name' => 'required|string|max:255',
-        'phone' => 'required|string|max:50',
-        'address' => 'required|string|max:500',
-        'items' => 'required|array',
-        'items.*.id' => 'required|integer|exists:products,id', // обов'язковий product_id
-        'items.*.title' => 'required|string|max:255',
-        'items.*.price' => 'required|numeric',
-        'items.*.count' => 'required|integer|min:1',
-        'total' => 'required|numeric',
-    ]);
-
-    // Перевірка залишків
-    $errors = [];
-    foreach ($data['items'] as $item) {
-        $product = Product::findOrFail($item['id']);
-        if ($item['count'] > $product->stock) {
-            $errors[] = "{$product->title} - only {$product->stock} left in stock";
-        }
-    }
-
-    if (!empty($errors)) {
-        return response()->json([
-            'message' => 'Stock issues detected',
-            'errors' => $errors,
-        ], 422);
-    }
-
-    // Створення замовлення
-    $order = Order::create([
-        'name' => $data['name'],
-        'phone' => $data['phone'],
-        'address' => $data['address'],
-        'total' => $data['total'],
-    ]);
-
-    foreach ($data['items'] as $item) {
-        $product = Product::findOrFail($item['id']);
-
-        // Зберігаємо позицію замовлення
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'title' => $product->title,
-            'price' => $product->price,
-            'count' => $item['count'],
+    {
+        // Валидируем
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:50',
+            'address' => 'required|string|max:500',
+            'items' => 'required|array',
+            'items.*.id' => 'required|integer|exists:products,id', // обов'язковий product_id
+            'items.*.title' => 'required|string|max:255',
+            'items.*.price' => 'required|numeric',
+            'items.*.count' => 'required|integer|min:1',
+            'total' => 'required|numeric',
         ]);
 
-        // Віднімаємо зі складу
-        $product->stock -= $item['count'];
-        $product->save();
-    }
+        // Перевірка залишків
+        $errors = [];
+        foreach ($data['items'] as $item) {
+            $product = Product::findOrFail($item['id']);
+            if ($item['count'] > $product->stock) {
+                $errors[] = "{$product->title} - only {$product->stock} left in stock";
+            }
+        }
 
-    return response()->json([
-        'message' => 'Order created successfully',
-        'order_id' => $order->id,
-    ], 201);
-}
+        if (!empty($errors)) {
+            return response()->json([
+                'message' => 'Stock issues detected',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        // Створення замовлення
+        $order = Order::create([
+            'name' => $data['name'],
+            'phone' => $data['phone'],
+            'address' => $data['address'],
+            'total' => $data['total'],
+        ]);
+
+        foreach ($data['items'] as $item) {
+            $product = Product::findOrFail($item['id']);
+
+            // Зберігаємо позицію замовлення
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'title' => $product->title,
+                'price' => $product->price,
+                'count' => $item['count'],
+            ]);
+
+            // Віднімаємо зі складу
+            $product->stock -= $item['count'];
+            $product->save();
+        }
+
+        return response()->json([
+            'message' => 'Order created successfully',
+            'order_id' => $order->id,
+        ], 201);
+    }
 
     /**
      * Пример: получить список всех заказов
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Eager-load items
-        $orders = Order::with('items')->get();
+        $query = Order::query();
+
+        if ($request->has('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                    ->orWhere('id', $search); // точний збіг для ID
+            });
+        }
+
+        if ($request->has('status') && $request->status !== '') {
+            $query->where('status', $request->status);
+        }
+
+        $orders = $query->orderBy('created_at', 'desc')->get();
+
         return response()->json($orders);
     }
 

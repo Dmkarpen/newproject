@@ -99,16 +99,14 @@
 
 			if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-			await res.json();
+			const responseData = await res.json(); // 👈 тут забираємо ID
+
 			clearCart();
 			showOrderForm = false;
 			name = '';
 			phone = '';
 			address = '';
-			orderSuccessMessage = 'Your order has been successfully placed!';
-			// setTimeout(() => {
-			// 	orderSuccessMessage = '';
-			// }, 5000); // прибираємо повідомлення через 5 секунд
+			orderSuccessMessage = `Your order has been successfully placed! Order #${responseData.order_id}`;
 		} catch (error) {
 			console.error('Order error:', error);
 		} finally {

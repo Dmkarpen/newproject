@@ -8,17 +8,40 @@
 	let showConfirmModal = false;
 	let selectedOrderId = null;
 
-	onMount(async () => {
+	let search = '';
+	let selectedStatus = '';
+	const statuses = ['pending', 'processing', 'completed', 'cancelled'];
+
+	onMount(() => {
+		fetchOrders();
+	});
+
+	async function fetchOrders() {
 		isLoading.set(true);
 		try {
-			const res = await fetch('http://127.0.0.1:8000/api/orders');
+			let url = new URL('http://127.0.0.1:8000/api/orders');
+			if (search) url.searchParams.set('search', search);
+			if (selectedStatus) url.searchParams.set('status', selectedStatus);
+
+			const res = await fetch(url);
+			if (!res.ok) throw new Error('Failed to fetch orders');
 			orders = await res.json();
 		} catch (e) {
 			console.error('Failed to load orders:', e);
 		} finally {
 			isLoading.set(false);
 		}
-	});
+	}
+
+	function handleSearch() {
+		fetchOrders();
+	}
+
+	function clearFilters() {
+		search = '';
+		selectedStatus = '';
+		fetchOrders();
+	}
 
 	function editOrder(id) {
 		goto(`/admin/orders/${id}`);
@@ -59,11 +82,41 @@
 			selectedOrderId = null;
 		}
 	}
+
+	// 🔁 Автоматичний виклик при зміні статусу
+	$: if (selectedStatus !== undefined) {
+		fetchOrders();
+	}
 </script>
 
 <AppLoader />
 
 <h2 class="text-2xl font-bold mb-6">Orders List</h2>
+
+<!-- Форма пошуку та фільтрації -->
+<div class="flex flex-col md:flex-row gap-4 mb-6 items-center">
+	<input
+		type="text"
+		class="input input-bordered w-full md:w-64"
+		placeholder="Search by ID or Name"
+		bind:value={search}
+		on:keypress={(e) => {
+			if (e.key === 'Enter') handleSearch();
+		}}
+	/>
+
+	<select class="select select-bordered w-full md:w-48" bind:value={selectedStatus}>
+		<option value="">All Statuses</option>
+		{#each statuses as status}
+			<option value={status}>{status}</option>
+		{/each}
+	</select>
+
+	<button class="btn btn-primary" on:click={handleSearch}>Search</button>
+	{#if search || selectedStatus}
+		<button class="btn btn-outline" on:click={clearFilters}>Clear</button>
+	{/if}
+</div>
 
 {#if orders.length === 0}
 	<p class="text-gray-500">No orders found.</p>
@@ -108,7 +161,6 @@
 			<h3 class="font-bold text-lg">Confirm Delete</h3>
 			<p class="py-4">Are you sure you want to delete this order?</p>
 			<div class="modal-action">
-				<!-- Ніякої додаткової логіки тут не потрібно -->
 				<button class="btn btn-error" on:click={deleteOrderConfirmed}>Yes</button>
 				<button class="btn" on:click={cancelDelete}>No</button>
 			</div>
