@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Mail\EmailVerificationMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
 
 class AuthController extends Controller
 {
@@ -20,28 +23,20 @@ class AuthController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        // Создаём пользователя
+        // Створюємо користувача з email_verified = false + токен
         $user = User::create([
             'name' => $request->input('name'),
             'email' => $request->input('email'),
             'password' => Hash::make($request->input('password')),
+            'email_verified' => false,
+            'email_verification_token' => Str::random(64),
         ]);
 
-        // Генерируем Sanctum-токен
-        $tokenResult = $user->createToken('authToken');
-        $plainTextToken = $tokenResult->plainTextToken;
+        // Надсилаємо листа для підтвердження email
+        Mail::to($user->email)->send(new EmailVerificationMail($user->email_verification_token));
 
-        // Устанавливаем срок действия токена (например, 30 минут)
-        $lastToken = $user->tokens()->latest('id')->first();
-        $lastToken->expires_at = now()->addMinutes(30);
-        $lastToken->save();
-
-        // НЕ возвращаем expires_at, чтобы фронтенд о нём не знал
         return response()->json([
-            'message' => 'User registered successfully',
-            'user'    => $user,
-            'token'   => $plainTextToken,
-            // 'expires_at' => $lastToken->expires_at->timestamp, // убрали
+            'message' => 'User registered successfully. Please check your email to verify your account.',
         ], 201);
     }
 
@@ -61,6 +56,13 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
+        // 🔐 Проверка подтверждения email
+        if (!$user->email_verified) {
+            return response()->json([
+                'message' => 'Please verify your email before logging in.'
+            ], 403);
+        }
+
         // Создаём Sanctum-токен
         $tokenResult = $user->createToken('authToken');
         $plainTextToken = $tokenResult->plainTextToken;
@@ -70,7 +72,6 @@ class AuthController extends Controller
         $lastToken->expires_at = now()->addMinutes(30);
         $lastToken->save();
 
-        // НЕ возвращаем expires_at
         return response()->json([
             'message' => 'Logged in successfully',
             'token'   => $plainTextToken,
@@ -114,5 +115,52 @@ class AuthController extends Controller
             'name'  => $user->name,
             'email' => $user->email,
         ], 200);
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $token = $request->query('token');
+
+        if (!$token) {
+            return response()->json(['message' => 'Token is required'], 400);
+        }
+
+        $user = User::where('email_verification_token', $token)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Invalid or expired token'], 404);
+        }
+
+        $user->email_verified = true;
+        $user->email_verification_token = null;
+        $user->save();
+
+        return redirect('http://localhost:9000/#/verified');
+    }
+
+    public function resendVerification(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        if ($user->email_verified) {
+            return response()->json(['message' => 'Email already verified'], 400);
+        }
+
+        // Генеруємо новий токен (за бажанням, або залишаємо старий)
+        $user->email_verification_token = Str::random(64);
+        $user->save();
+
+        // Надсилаємо лист
+        Mail::to($user->email)->send(new EmailVerificationMail($user->email_verification_token));
+
+        return response()->json(['message' => 'Verification email resent']);
     }
 }

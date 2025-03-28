@@ -22,6 +22,8 @@ Route::post('/products/stock-check', [ProductController::class, 'stockCheck']);
 
 Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.login');
+Route::get('/verify-email', [AuthController::class, 'verifyEmail']);
+Route::post('/resend-verification', [AuthController::class, 'resendVerification']);
 Route::group([
     'middleware' => [
         'auth:sanctum',
