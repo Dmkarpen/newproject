@@ -3,8 +3,9 @@
 	import { createProductsCart } from '../runes/cartProducts.svelte';
 	import { goto } from '$app/navigation';
 	import { isLoading } from '../lib/stores/loading';
+	import { fade } from 'svelte/transition';
 
-	const { addProductToCart } = createProductsCart();
+	const { cartProducts, addProductToCart } = createProductsCart();
 
 	let data = { products: [] };
 	let searchValue = '';
@@ -13,6 +14,7 @@
 	const categoryFilterNAme = 'Category';
 	let loading = false;
 	let isOpenModal = false;
+	let showAddMessage = false;
 
 	// --- Головне завантаження ---
 	onMount(async () => {
@@ -131,6 +133,13 @@
 	function openProductPage(id) {
 		goto(`/product/${id}`);
 	}
+
+	function showAddedNotification() {
+		showAddMessage = true;
+		setTimeout(() => {
+			showAddMessage = false;
+		}, 2500);
+	}
 </script>
 
 <div class="join flex justify-center mt-10">
@@ -174,6 +183,15 @@
 </dialog>
 
 <div class="overflow-x-auto">
+	{#if showAddMessage}
+		<div
+			class="fixed top-20 right-10 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50"
+			in:fade={{ duration: 400 }}
+			out:fade={{ duration: 500 }}
+		>
+			Product added to cart!
+		</div>
+	{/if}
 	<table class="table">
 		<!-- head -->
 		<thead>
@@ -229,8 +247,10 @@
 					<th>
 						<button
 							class="btn"
+							class:bg-green-100={cartProducts.some((p) => p.id === product.id)}
 							onclick={() => {
 								addProductToCart(product);
+								showAddedNotification();
 							}}
 							disabled={!product.available}
 						>
