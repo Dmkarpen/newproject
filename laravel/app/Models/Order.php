@@ -16,6 +16,9 @@ class Order extends Model
         'address',
         'total',
         'status',
+        'delivery_type',
+        'np_city_ref',
+        'np_warehouse_ref',
     ];
 
     // Связь "один ко многим" с OrderItem

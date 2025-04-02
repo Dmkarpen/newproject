@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { createProductsCart } from '../../runes/cartProducts.svelte';
 	import { isLoading } from '../../lib/stores/loading';
+	import SearchSelect from '$lib/components/SearchSelect.svelte';
 
 	const {
 		cartProducts,
@@ -9,20 +10,57 @@
 		clearCart,
 		deleteProductFromCart,
 		plusProductFromCart,
-		minusProductFromCart
+		minusProductFromCart,
+		addProductToCart
 	} = createProductsCart();
 
 	let showOrderForm = false;
 	let name = '';
 	let phone = '';
 	let address = '';
-
-	let stockErrors = []; // Список ID товарів, в яких є проблема з кількістю
-	let stockMessages = []; // Тексти помилок для відображення
+	let deliveryType = 'pickup';
+	let stockErrors = [];
+	let stockMessages = [];
 	let orderSuccessMessage = '';
 
+	let cities = [];
+	let warehouses = [];
+	let selectedCity = null;
+	let selectedWarehouse = null;
+
+	async function fetchCities() {
+		try {
+			const res = await fetch('http://127.0.0.1:8000/api/novaposhta/cities');
+			const data = await res.json();
+			cities = data.data || [];
+		} catch (err) {
+			console.error('Fetch cities error:', err);
+		}
+	}
+
+	async function fetchWarehouses(city) {
+		if (!city?.Ref) return;
+
+		try {
+			const res = await fetch('http://127.0.0.1:8000/api/novaposhta/warehouses', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ cityRef: city.Ref })
+			});
+			const data = await res.json();
+			warehouses = data.data || [];
+		} catch (err) {
+			console.error('Fetch warehouses error:', err);
+		}
+	}
+
+	$: if (selectedCity) {
+		fetchWarehouses(selectedCity);
+	}
+
 	function onQuantityChange(index) {
-		// чекаємо до наступного циклу подій, щоб count вже був оновлений
 		setTimeout(() => {
 			checkStock();
 		}, 0);
@@ -83,7 +121,10 @@
 		const orderData = {
 			name,
 			phone,
-			address,
+			address: deliveryType === 'courier' ? address : '',
+			delivery_type: deliveryType,
+			np_city_ref: selectedCity ? selectedCity.Ref : '',
+			np_warehouse_ref: selectedWarehouse ? selectedWarehouse.Ref : '',
 			items,
 			total
 		};
@@ -99,13 +140,14 @@
 
 			if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-			const responseData = await res.json(); // 👈 тут забираємо ID
-
+			const responseData = await res.json();
 			clearCart();
 			showOrderForm = false;
 			name = '';
 			phone = '';
 			address = '';
+			selectedCity = null;
+			selectedWarehouse = null;
 			orderSuccessMessage = `Your order has been successfully placed! Order #${responseData.order_id}`;
 		} catch (error) {
 			console.error('Order error:', error);
@@ -116,6 +158,7 @@
 
 	onMount(() => {
 		checkStock();
+		fetchCities();
 	});
 </script>
 
@@ -280,8 +323,7 @@
 
 	<!-- Если showOrderForm, показываем форму -->
 	{#if showOrderForm}
-		<!-- Блок формы -->
-		<div class="q-mt-md" style="max-width: 300px; margin: 0 auto; text-align: left;">
+		<div class="q-mt-md" style="max-width: 400px; margin: 0 auto; text-align: left;">
 			<form on:submit|preventDefault={submitOrder}>
 				<div class="q-mb-md">
 					<label>Name:</label>
@@ -293,6 +335,7 @@
 						required
 					/>
 				</div>
+
 				<div class="q-mb-md">
 					<label>Phone number:</label>
 					<input
@@ -303,19 +346,60 @@
 						required
 					/>
 				</div>
-				<div class="q-mb-md">
-					<label>Address:</label>
-					<input
-						type="text"
-						bind:value={address}
-						placeholder="Your address"
-						class="input input-bordered w-full"
-						required
-					/>
+
+				<div class="my-6">
+					<label>Delivery method:</label>
+					<div class="flex gap-4 mt-2">
+						<label class="flex items-center gap-2">
+							<input type="radio" bind:group={deliveryType} value="pickup" />
+							Pickup from Nova Poshta
+						</label>
+						<label class="flex items-center gap-2">
+							<input type="radio" bind:group={deliveryType} value="courier" />
+							Courier to your address
+						</label>
+					</div>
 				</div>
-				<!-- Кнопка Submit -->
+
+				{#if deliveryType === 'pickup' || deliveryType === 'courier'}
+					<div class="q-mb-md">
+						<label>City:</label>
+						<SearchSelect
+							items={cities}
+							bind:selected={selectedCity}
+							placeholder="Choose city"
+							label="Description"
+						/>
+					</div>
+
+					{#if warehouses.length > 0}
+						<div class="q-mb-md">
+							<label>Warehouse:</label>
+							<SearchSelect
+								items={warehouses}
+								bind:selected={selectedWarehouse}
+								placeholder="Choose warehouse"
+								label="Description"
+							/>
+						</div>
+					{/if}
+				{/if}
+
+				{#if deliveryType === 'courier'}
+					<div class="q-mb-md">
+						<label>Address:</label>
+						<input
+							type="text"
+							bind:value={address}
+							placeholder="Your address"
+							class="input input-bordered w-full"
+							required
+						/>
+					</div>
+				{/if}
+
 				<div style="margin-top: 1rem; text-align: center;">
-					<button type="submit" class="btn btn-success"> Submit </button>
+					<button type="submit" class="btn btn-success">Submit</button>
 				</div>
 			</form>
 		</div>

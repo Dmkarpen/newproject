@@ -9,6 +9,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OrderController;
 use App\Http\Middleware\CheckTokenExpired;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\NovaPoshtaController;
 
 Route::get('/categories', [CategoryController::class, 'index']);
 
@@ -42,3 +43,6 @@ Route::delete('/orders/{id}', [OrderController::class, 'destroy']);
 Route::delete('/orders/{orderId}/items/{itemId}', [OrderController::class, 'removeItem']);
 
 Route::post('/contact-messages', [ContactController::class, 'store']);
+
+Route::get('/novaposhta/cities', [NovaPoshtaController::class, 'getCities']);
+Route::post('/novaposhta/warehouses', [NovaPoshtaController::class, 'getWarehouses']);

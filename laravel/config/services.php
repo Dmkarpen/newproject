@@ -35,4 +35,7 @@ return [
         ],
     ],
 
+    'novaposhta' => [
+        'key' => env('NOVA_POSHTA_API_KEY'),
+    ],
 ];

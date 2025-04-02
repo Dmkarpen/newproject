@@ -22,9 +22,12 @@ class OrderController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:50',
-            'address' => 'required|string|max:500',
+            'address' => 'nullable|string|max:500', // було required
+            'delivery_type' => 'required|string|in:pickup,courier',
+            'np_city_ref' => 'nullable|string',
+            'np_warehouse_ref' => 'nullable|string',
             'items' => 'required|array',
-            'items.*.id' => 'required|integer|exists:products,id', // обов'язковий product_id
+            'items.*.id' => 'required|integer|exists:products,id',
             'items.*.title' => 'required|string|max:255',
             'items.*.price' => 'required|numeric',
             'items.*.count' => 'required|integer|min:1',
@@ -51,7 +54,10 @@ class OrderController extends Controller
         $order = Order::create([
             'name' => $data['name'],
             'phone' => $data['phone'],
-            'address' => $data['address'],
+            'address' => $data['address'] ?? null,
+            'delivery_type' => $data['delivery_type'],
+            'np_city_ref' => $data['np_city_ref'] ?? null,
+            'np_warehouse_ref' => $data['np_warehouse_ref'] ?? null,
             'total' => $data['total'],
         ]);
 
