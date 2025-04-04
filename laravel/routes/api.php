@@ -20,6 +20,7 @@ Route::post('/product-image', [ImageController::class, 'store']);
 Route::get('/products/search', [ProductController::class, 'search']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::post('/products/stock-check', [ProductController::class, 'stockCheck']);
+Route::get('/products-viewed', [ProductController::class, 'viewedByUser']);
 
 Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.login');

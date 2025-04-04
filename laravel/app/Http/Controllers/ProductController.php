@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ViewedProduct;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
+use App\Models\User;
 
 class ProductController extends Controller
 {
@@ -33,9 +36,28 @@ class ProductController extends Controller
         return Product::create($request->all());
     }
 
-    public function show($id)
+    // public function show($id)
+    // {
+    //     return Product::with('images')->findOrFail($id);
+    // }
+
+    public function show(Request $request, $id)
     {
-        return Product::with('images')->findOrFail($id);
+        $product = Product::with('images')->findOrFail($id);
+
+        // 🔐 Ручна аутентифікація
+        $token = $request->bearerToken();
+        $accessToken = PersonalAccessToken::findToken($token);
+        $user = $accessToken?->tokenable;
+
+        if ($user instanceof User) {
+            ViewedProduct::updateOrCreate(
+                ['user_id' => $user->id, 'product_id' => $id],
+                ['viewed_at' => now()]
+            );
+        }
+
+        return response()->json($product);
     }
 
     public function stockCheck(Request $request)
@@ -50,7 +72,7 @@ class ProductController extends Controller
         ]);
 
         // Повертаємо відповідні товари з полями id, title та stock
-        $products = \App\Models\Product::whereIn('id', $validated['ids'])
+        $products = Product::whereIn('id', $validated['ids'])
             ->get(['id', 'title', 'stock']);
 
         return response()->json($products);
@@ -79,4 +101,27 @@ class ProductController extends Controller
             'products' => $products
         ]);
     }
+
+    public function viewedByUser(Request $request)
+    {
+        $userId = $request->query('user_id');
+
+        if (!$userId) {
+            return response()->json([], 400); // або [], якщо хочеш просто повернути пустий масив
+        }
+
+        $viewed = ViewedProduct::where('user_id', $userId)
+            ->orderByDesc('viewed_at')
+            ->with('product.images')
+            ->limit(10)
+            ->get()
+            ->pluck('product');
+
+        return response()->json($viewed);
+    }
+
+    //     public function viewedByUser(Request $request)
+    // {
+    //     return response()->json(['status' => 'OK']);
+    // }
 }

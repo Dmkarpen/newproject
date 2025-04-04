@@ -69,7 +69,7 @@ class AuthController extends Controller
 
         // Устанавливаем срок действия (30 минут)
         $lastToken = $user->tokens()->latest('id')->first();
-        $lastToken->expires_at = now()->addMinutes(30);
+        $lastToken->expires_at = now()->addDays(10);
         $lastToken->save();
 
         return response()->json([
