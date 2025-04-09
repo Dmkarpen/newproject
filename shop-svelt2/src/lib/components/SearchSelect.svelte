@@ -1,16 +1,17 @@
 <script>
+	import { onMount, onDestroy } from 'svelte';
+
 	export let items = [];
 	export let selected = null;
-	export let placeholder = 'Виберіть...';
+	export let placeholder = 'Select...';
 	export let label = 'label';
+	export let minSearchLength = 3;
 
 	let query = '';
 	let isOpen = false;
+	let wrapper;
 
-	$: filtered =
-		query.length === 0
-			? items
-			: items.filter((item) => item[label].toLowerCase().includes(query.toLowerCase()));
+	$: filtered = items.filter((item) => item[label].toLowerCase().includes(query.toLowerCase()));
 
 	function selectItem(item) {
 		selected = item;
@@ -18,34 +19,50 @@
 		query = item[label];
 	}
 
-	function toggleDropdown() {
-		isOpen = !isOpen;
+	function handleClickOutside(event) {
+		if (!wrapper.contains(event.target)) {
+			isOpen = false;
+		}
 	}
+
+	onMount(() => {
+		document.addEventListener('click', handleClickOutside);
+	});
+
+	onDestroy(() => {
+		document.removeEventListener('click', handleClickOutside);
+	});
 </script>
 
-<div class="relative w-full">
+<div class="relative w-full" bind:this={wrapper}>
 	<input
 		type="text"
 		class="input input-bordered w-full"
 		{placeholder}
 		bind:value={query}
-		on:focus={() => (isOpen = true)}
-		on:input={() => (isOpen = true)}
+		on:focus={() => {
+			if (minSearchLength === 0) isOpen = true;
+		}}
+		on:input={() => (isOpen = query.length >= minSearchLength)}
 	/>
 
 	{#if isOpen}
 		<ul
 			class="absolute z-10 bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-auto w-full shadow"
 		>
-			{#each filtered as item}
-				<li on:click={() => selectItem(item)} class="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-					{item[label]}
-				</li>
-			{/each}
-
 			{#if filtered.length === 0}
-				<li class="px-4 py-2 text-gray-400">Нічого не знайдено</li>
+				<li class="px-4 py-2 text-gray-400">No results found</li>
+			{:else}
+				{#each filtered as item}
+					<li on:click={() => selectItem(item)} class="px-4 py-2 hover:bg-gray-100 cursor-pointer">
+						{item[label]}
+					</li>
+				{/each}
 			{/if}
 		</ul>
+	{/if}
+
+	{#if query.length > 0 && query.length < minSearchLength}
+		<p class="text-sm text-gray-500 mt-1">Enter at least 3 characters</p>
 	{/if}
 </div>

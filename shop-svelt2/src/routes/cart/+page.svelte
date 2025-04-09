@@ -369,20 +369,22 @@
 							bind:selected={selectedCity}
 							placeholder="Choose city"
 							label="Description"
+							minSearchLength={3}
 						/>
 					</div>
+				{/if}
 
-					{#if warehouses.length > 0}
-						<div class="q-mb-md">
-							<label>Warehouse:</label>
-							<SearchSelect
-								items={warehouses}
-								bind:selected={selectedWarehouse}
-								placeholder="Choose warehouse"
-								label="Description"
-							/>
-						</div>
-					{/if}
+				{#if deliveryType === 'pickup' && warehouses.length > 0}
+					<div class="q-mb-md">
+						<label>Warehouse:</label>
+						<SearchSelect
+							items={warehouses}
+							bind:selected={selectedWarehouse}
+							placeholder="Choose warehouse"
+							label="Description"
+							minSearchLength={0}
+						/>
+					</div>
 				{/if}
 
 				{#if deliveryType === 'courier'}
