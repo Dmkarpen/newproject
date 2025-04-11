@@ -10,6 +10,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Middleware\CheckTokenExpired;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\NovaPoshtaController;
+use App\Http\Controllers\WishlistController;
 
 Route::get('/categories', [CategoryController::class, 'index']);
 
@@ -47,3 +48,7 @@ Route::post('/contact-messages', [ContactController::class, 'store']);
 
 Route::get('/novaposhta/cities', [NovaPoshtaController::class, 'getCities']);
 Route::post('/novaposhta/warehouses', [NovaPoshtaController::class, 'getWarehouses']);
+
+Route::get('/wishlist', [WishlistController::class, 'index']);
+Route::post('/wishlist/add', [WishlistController::class, 'add']);
+Route::post('/wishlist/remove', [WishlistController::class, 'remove']);
