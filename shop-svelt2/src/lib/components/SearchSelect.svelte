@@ -6,12 +6,20 @@
 	export let placeholder = 'Select...';
 	export let label = 'label';
 	export let minSearchLength = 3;
+	export let useStartsWith = false;
 
 	let query = '';
 	let isOpen = false;
 	let wrapper;
 
-	$: filtered = items.filter((item) => item[label].toLowerCase().includes(query.toLowerCase()));
+	$: filtered =
+		query.length >= minSearchLength || minSearchLength === 0
+			? items.filter((item) =>
+					useStartsWith
+						? item[label].toLowerCase().startsWith(query.toLowerCase())
+						: item[label].toLowerCase().includes(query.toLowerCase())
+				)
+			: [];
 
 	function selectItem(item) {
 		selected = item;
@@ -50,7 +58,7 @@
 		<ul
 			class="absolute z-10 bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-auto w-full shadow"
 		>
-			{#if filtered.length === 0}
+			{#if query.length > 0 && filtered.length === 0}
 				<li class="px-4 py-2 text-gray-400">No results found</li>
 			{:else}
 				{#each filtered as item}

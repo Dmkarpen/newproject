@@ -121,13 +121,17 @@
 		const orderData = {
 			name,
 			phone,
-			address: deliveryType === 'courier' ? address : '',
 			delivery_type: deliveryType,
 			np_city_ref: selectedCity ? selectedCity.Ref : '',
-			np_warehouse_ref: selectedWarehouse ? selectedWarehouse.Ref : '',
 			items,
 			total
 		};
+
+		if (deliveryType === 'courier') {
+			orderData.address = address;
+		} else if (deliveryType === 'pickup') {
+			orderData.np_warehouse_ref = selectedWarehouse ? selectedWarehouse.Ref : '';
+		}
 
 		try {
 			const res = await fetch('http://127.0.0.1:8000/api/orders', {
@@ -370,6 +374,7 @@
 							placeholder="Choose city"
 							label="Description"
 							minSearchLength={3}
+							useStartsWith={true}
 						/>
 					</div>
 				{/if}
@@ -383,6 +388,7 @@
 							placeholder="Choose warehouse"
 							label="Description"
 							minSearchLength={0}
+							useStartsWith={false}
 						/>
 					</div>
 				{/if}
