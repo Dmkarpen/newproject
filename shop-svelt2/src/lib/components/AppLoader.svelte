@@ -9,7 +9,7 @@
 	const unsubscribe = isLoading.subscribe(async (val) => {
 		if (val) {
 			// невелика затримка перед показом, щоб уникнути "мигання"
-			timeout = setTimeout(() => (show = true), 200);
+			timeout = setTimeout(() => (show = true), 10);
 		} else {
 			clearTimeout(timeout);
 			await tick();
