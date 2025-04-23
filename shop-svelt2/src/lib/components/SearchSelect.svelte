@@ -11,6 +11,16 @@
 	let query = '';
 	let isOpen = false;
 	let wrapper;
+	let wasInitialized = false;
+
+	$: if (selected && !wasInitialized) {
+		query = selected[label];
+		wasInitialized = true;
+	}
+
+	$: if (selected === null) {
+		query = '';
+	}
 
 	$: filtered =
 		query.length >= minSearchLength || minSearchLength === 0

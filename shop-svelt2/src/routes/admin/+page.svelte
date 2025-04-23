@@ -10,7 +10,9 @@
 
 	let search = '';
 	let selectedStatus = '';
+	let selectedDelivery = '';
 	const statuses = ['pending', 'processing', 'completed', 'cancelled'];
+	const deliveryTypes = ['pickup', 'courier'];
 
 	onMount(() => {
 		fetchOrders();
@@ -22,6 +24,7 @@
 			let url = new URL('http://127.0.0.1:8000/api/orders');
 			if (search) url.searchParams.set('search', search);
 			if (selectedStatus) url.searchParams.set('status', selectedStatus);
+			if (selectedDelivery) url.searchParams.set('delivery_type', selectedDelivery);
 
 			const res = await fetch(url);
 			if (!res.ok) throw new Error('Failed to fetch orders');
@@ -40,6 +43,7 @@
 	function clearFilters() {
 		search = '';
 		selectedStatus = '';
+		selectedDelivery = '';
 		fetchOrders();
 	}
 
@@ -82,11 +86,6 @@
 			selectedOrderId = null;
 		}
 	}
-
-	// 🔁 Автоматичний виклик при зміні статусу
-	$: if (selectedStatus !== undefined) {
-		fetchOrders();
-	}
 </script>
 
 <AppLoader />
@@ -105,15 +104,30 @@
 		}}
 	/>
 
-	<select class="select select-bordered w-full md:w-48" bind:value={selectedStatus}>
+	<select
+		class="select select-bordered w-full md:w-48"
+		bind:value={selectedStatus}
+		on:change={fetchOrders}
+	>
 		<option value="">All Statuses</option>
 		{#each statuses as status}
 			<option value={status}>{status}</option>
 		{/each}
 	</select>
 
+	<select
+		class="select select-bordered w-full md:w-48"
+		bind:value={selectedDelivery}
+		on:change={fetchOrders}
+	>
+		<option value="">All delivery types</option>
+		{#each deliveryTypes as type}
+			<option value={type}>{type}</option>
+		{/each}
+	</select>
+
 	<button class="btn btn-primary" on:click={handleSearch}>Search</button>
-	{#if search || selectedStatus}
+	{#if search || selectedStatus || selectedDelivery}
 		<button class="btn btn-outline" on:click={clearFilters}>Clear</button>
 	{/if}
 </div>
@@ -129,6 +143,7 @@
 					<th>Customer</th>
 					<th>Total</th>
 					<th>Status</th>
+					<th>Delivery</th>
 					<th>Actions</th>
 				</tr>
 			</thead>
@@ -139,6 +154,7 @@
 						<td>{order.name}</td>
 						<td>${order.total}</td>
 						<td>{order.status}</td>
+						<td>{order.delivery_type || '-'}</td>
 						<td class="space-x-2">
 							<button class="btn btn-sm btn-success" on:click={() => editOrder(order.id)}
 								>Edit</button

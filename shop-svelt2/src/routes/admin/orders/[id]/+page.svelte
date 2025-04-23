@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { isLoading } from '$lib/stores/loading';
+	import NovaPoshtaForm from '$lib/components/NovaPoshtaForm.svelte';
 
 	let orderId = $page.params.id;
 	let order = null;
@@ -15,15 +16,43 @@
 	let productSearch = '';
 	let searchResults = [];
 
+	let deliveryType = '';
+	let selectedCity = null;
+	let selectedWarehouse = null;
+	let address = '';
+
+	let cities = [];
+	let warehouses = [];
+
 	onMount(async () => {
 		isLoading.set(true);
 		try {
+			await fetchCities(); // Спочатку міста
+
 			const res = await fetch(`http://127.0.0.1:8000/api/orders/${orderId}`);
 			if (!res.ok) {
 				errorMessage = 'Error loading order: ' + (await res.text());
 				return;
 			}
+
 			order = await res.json();
+
+			// Нові поля
+			deliveryType = order.delivery_type;
+			address = order.address || '';
+
+			// Встановлюємо selectedCity
+			selectedCity = cities.find((c) => c.Ref === order.np_city_ref);
+			console.log('📦 Selected city:', selectedCity);
+
+			// Якщо місто знайдено — вантажимо відділення
+			if (selectedCity) {
+				await fetchWarehouses(selectedCity.Ref);
+				console.log('📦 Warehouses after fetch:', warehouses);
+				selectedWarehouse = warehouses.find((w) => w.Ref === order.np_warehouse_ref);
+				console.log('📦 Selected warehouse:', selectedWarehouse);
+			}
+
 			await checkStock();
 		} catch (err) {
 			errorMessage = 'Error fetching order: ' + err;
@@ -38,6 +67,11 @@
 			sum += item.price * item.count;
 		}
 		order.total = parseFloat(sum.toFixed(2));
+	}
+
+	$: if (selectedCity) {
+		fetchWarehouses(selectedCity.Ref);
+		selectedWarehouse = null;
 	}
 
 	async function checkStock() {
@@ -79,12 +113,21 @@
 			return;
 		}
 
+		if (deliveryType === 'pickup') {
+			address = '';
+		} else if (deliveryType === 'courier') {
+			selectedWarehouse = null;
+		}
+
 		const body = {
 			name: order.name,
 			phone: order.phone,
-			address: order.address,
+			address,
 			total: order.total,
 			status: order.status,
+			delivery_type: deliveryType,
+			np_city_ref: selectedCity?.Ref || null,
+			np_warehouse_ref: selectedWarehouse?.Ref || null,
 			items: order.items.map((i) => ({
 				id: i.id,
 				product_id: i.product_id,
@@ -176,6 +219,22 @@
 			isLoading.set(false);
 		}
 	}
+
+	async function fetchCities() {
+		const res = await fetch('http://127.0.0.1:8000/api/novaposhta/cities');
+		const data = await res.json();
+		cities = data.data;
+	}
+
+	async function fetchWarehouses(cityRef) {
+		const res = await fetch('http://127.0.0.1:8000/api/novaposhta/warehouses', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ cityRef })
+		});
+		const data = await res.json();
+		warehouses = data.data;
+	}
 </script>
 
 {#if order}
@@ -189,7 +248,7 @@
 	{/if}
 
 	<!-- Верхний блок редактирования -->
-	<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 max-w-5xl">
+	<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 max-w-3xl">
 		<div>
 			<label class="label">Name</label>
 			<input class="input input-bordered w-full" bind:value={order.name} />
@@ -198,13 +257,9 @@
 			<label class="label">Phone</label>
 			<input class="input input-bordered w-full" bind:value={order.phone} />
 		</div>
-		<div class="md:col-span-2">
-			<label class="label">Address</label>
-			<input class="input input-bordered w-full" bind:value={order.address} />
-		</div>
 	</div>
 
-	<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 max-w-5xl">
+	<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 max-w-3xl">
 		<div>
 			<label class="label">Total</label>
 			<input class="input input-bordered w-full" type="number" bind:value={order.total} disabled />
@@ -220,7 +275,32 @@
 		</div>
 	</div>
 
-	<h3 class="text-lg font-semibold mb-2">Order Items</h3>
+	<div class="q-mb-md">
+		<label class="text-lg font-semibold mb-2 mt-6">Delivery method</label>
+		<div class="flex gap-4 mt-2">
+			<label class="flex items-center gap-4">
+				<input type="radio" bind:group={deliveryType} value="pickup" />
+				Pickup from Nova Poshta
+			</label>
+			<label class="flex items-center gap-4">
+				<input type="radio" bind:group={deliveryType} value="courier" />
+				Courier to your address
+			</label>
+		</div>
+	</div>
+
+	<div class="grid grid-cols-1 gap-4 mb-6 max-w-3xl">
+		<NovaPoshtaForm
+			{deliveryType}
+			{cities}
+			{warehouses}
+			bind:selectedCity
+			bind:selectedWarehouse
+			bind:address
+		/>
+	</div>
+
+	<h3 class="text-lg font-semibold mb-2 mt-6">Order Items</h3>
 	<div class="overflow-x-auto">
 		<table class="table table-zebra w-full">
 			<thead>

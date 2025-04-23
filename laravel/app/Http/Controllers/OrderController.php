@@ -103,6 +103,10 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->has('delivery_type') && $request->delivery_type !== '') {
+            $query->where('delivery_type', $request->delivery_type);
+        }
+
         $orders = $query->orderBy('created_at', 'desc')->get();
 
         return response()->json($orders);
@@ -125,7 +129,7 @@ class OrderController extends Controller
         $data = $request->validate([
             'name' => 'sometimes|string|max:255',
             'phone' => 'sometimes|string|max:50',
-            'address' => 'sometimes|string|max:500',
+            // 'address' => 'sometimes|string|max:500',
             'total' => 'sometimes|numeric',
             'status' => 'sometimes|string|max:50',
             'items' => 'sometimes|array',
@@ -135,6 +139,10 @@ class OrderController extends Controller
             'items.*.id' => 'nullable|integer',
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.count' => 'required|integer|min:1',
+            'delivery_type' => 'nullable|string',
+            'address' => 'nullable|string',
+            'np_city_ref' => 'nullable|string',
+            'np_warehouse_ref' => 'nullable|string',
         ]);
 
         // Обновляем поля заказа

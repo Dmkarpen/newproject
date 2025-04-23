@@ -60,6 +60,7 @@
 
 	$: if (selectedCity) {
 		fetchWarehouses(selectedCity);
+		selectedWarehouse = null;
 	}
 
 	function maskPhoneInput(node) {
