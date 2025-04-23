@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import { createProductsCart } from '../../runes/cartProducts.svelte';
 	import { isLoading } from '../../lib/stores/loading';
-	import SearchSelect from '$lib/components/SearchSelect.svelte';
+	// import SearchSelect from '$lib/components/SearchSelect.svelte';
 	import IMask from 'imask';
+	import NovaPoshtaForm from '$lib/components/NovaPoshtaForm.svelte';
 
 	const {
 		cartProducts,
@@ -11,8 +12,8 @@
 		clearCart,
 		deleteProductFromCart,
 		plusProductFromCart,
-		minusProductFromCart,
-		addProductToCart
+		minusProductFromCart
+		// addProductToCart
 	} = createProductsCart();
 
 	let showOrderForm = false;
@@ -396,46 +397,14 @@
 					</div>
 				</div>
 
-				{#if deliveryType === 'pickup' || deliveryType === 'courier'}
-					<div class="q-mb-md">
-						<label>City:</label>
-						<SearchSelect
-							items={cities}
-							bind:selected={selectedCity}
-							placeholder="Choose city"
-							label="Description"
-							minSearchLength={3}
-							useStartsWith={true}
-						/>
-					</div>
-				{/if}
-
-				{#if deliveryType === 'pickup' && warehouses.length > 0}
-					<div class="q-mb-md">
-						<label>Warehouse:</label>
-						<SearchSelect
-							items={warehouses}
-							bind:selected={selectedWarehouse}
-							placeholder="Choose warehouse"
-							label="Description"
-							minSearchLength={0}
-							useStartsWith={false}
-						/>
-					</div>
-				{/if}
-
-				{#if deliveryType === 'courier'}
-					<div class="q-mb-md">
-						<label>Address:</label>
-						<input
-							type="text"
-							bind:value={address}
-							placeholder="Your address"
-							class="input input-bordered w-full"
-							required
-						/>
-					</div>
-				{/if}
+				<NovaPoshtaForm
+					{deliveryType}
+					{cities}
+					{warehouses}
+					bind:selectedCity
+					bind:selectedWarehouse
+					bind:address
+				/>
 
 				<div style="margin-top: 1rem; text-align: center;">
 					<button type="submit" class="btn btn-success">Submit</button>
