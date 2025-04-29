@@ -11,6 +11,7 @@ use App\Http\Middleware\CheckTokenExpired;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\NovaPoshtaController;
 use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\ReviewController;
 
 Route::get('/categories', [CategoryController::class, 'index']);
 
@@ -52,3 +53,6 @@ Route::post('/novaposhta/warehouses', [NovaPoshtaController::class, 'getWarehous
 Route::get('/wishlist', [WishlistController::class, 'index']);
 Route::post('/wishlist/add', [WishlistController::class, 'add']);
 Route::post('/wishlist/remove', [WishlistController::class, 'remove']);
+
+Route::get('/reviews/{id}', [ReviewController::class, 'indexByProduct']);      // Отримати всі відгуки для продукту
+Route::post('/reviews', [ReviewController::class, 'store']);                   // Створити новий відгук
