@@ -24,6 +24,10 @@
 	let cities = [];
 	let warehouses = [];
 
+	let hasChanges = false;
+	let originalOrder = null;
+	let formInitialized = false;
+
 	onMount(async () => {
 		isLoading.set(true);
 		try {
@@ -36,6 +40,7 @@
 			}
 
 			order = await res.json();
+			originalOrder = JSON.parse(JSON.stringify(order)); // Зберігаємо копію
 
 			// Нові поля
 			deliveryType = order.delivery_type;
@@ -54,6 +59,7 @@
 			}
 
 			await checkStock();
+			formInitialized = true;
 		} catch (err) {
 			errorMessage = 'Error fetching order: ' + err;
 		} finally {
@@ -72,6 +78,22 @@
 	$: if (selectedCity) {
 		fetchWarehouses(selectedCity.Ref);
 		selectedWarehouse = null;
+	}
+
+	$: {
+		if (!formInitialized || !order || !originalOrder) {
+			hasChanges = false;
+		} else {
+			hasChanges =
+				JSON.stringify(order.name) !== JSON.stringify(originalOrder.name) ||
+				JSON.stringify(order.phone) !== JSON.stringify(originalOrder.phone) ||
+				JSON.stringify(order.status) !== JSON.stringify(originalOrder.status) ||
+				JSON.stringify(order.items) !== JSON.stringify(originalOrder.items) ||
+				(deliveryType || '') !== (originalOrder.delivery_type || '') ||
+				(address || '') !== (originalOrder.address || '') ||
+				(selectedCity?.Ref || '') !== (originalOrder.np_city_ref || '') ||
+				(selectedWarehouse?.Ref || '') !== (originalOrder.np_warehouse_ref || '');
+		}
 	}
 
 	async function checkStock() {
@@ -344,9 +366,13 @@
 
 	<div class="flex gap-4 mt-4">
 		<button class="btn btn-success" on:click={openProductModal}>Add item</button>
-		<button class="btn btn-primary" on:click={updateOrder} disabled={stockErrors.length > 0}
-			>Save</button
+		<button
+			class="btn btn-primary"
+			on:click={updateOrder}
+			disabled={stockErrors.length > 0 || !hasChanges}
 		>
+			Save
+		</button>
 	</div>
 
 	<!-- Modal -->
