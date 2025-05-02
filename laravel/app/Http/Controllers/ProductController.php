@@ -12,14 +12,15 @@ class ProductController extends Controller
 {
     public function index()
     {
-        // Завантажуємо продукти з відношенням "images"
-        $products = Product::with('images')->get();
+        $products = Product::with(['images'])
+            ->withCount('reviews')
+            ->withAvg('reviews', 'rating')
+            ->get();
 
-        // Додаємо поле "available" на основі залишку stock
         $products->each(function ($product) {
             $product->available = $product->stock > 0;
         });
-
+        // dd($products->first()->toArray());
         return response()->json($products);
     }
 

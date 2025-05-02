@@ -26,6 +26,12 @@ class Product extends Model
         return $this->hasMany(Image::class, 'product_id', 'id');
     }
 
+    // Метод для відгуків
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class, 'product_id', 'id');
+    }
+
     // Аксесор для віртуального поля "available"
     public function getAvailableAttribute(): bool
     {
