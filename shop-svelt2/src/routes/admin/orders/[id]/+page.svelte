@@ -169,6 +169,8 @@
 				const data = await res.json();
 				order = data.order;
 				successMessage = data.message || 'The order is updated.';
+				// 👇 Обновляем originalOrder после успешного обновления
+				originalOrder = structuredClone(order);
 			} else {
 				errorMessage = 'Error updating order: ' + (await res.text());
 			}
